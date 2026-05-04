@@ -596,6 +596,7 @@ export async function runPreparedReply(
   );
   const baseBodyForPrompt = isBareSessionReset
     ? [
+        inboundUserContext,
         startupContextPrelude,
         baseBodyFinal,
         softResetTail
