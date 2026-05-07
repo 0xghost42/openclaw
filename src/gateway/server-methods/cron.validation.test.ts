@@ -765,5 +765,15 @@ describe("cron method validation", () => {
       expect(context.cron.wake).not.toHaveBeenCalled();
       expectResponseError(respond, { code: "INVALID_REQUEST", messageIncludes: "sessionKey" });
     });
+
+    it("rejects subagent sessionKey targets before enqueueing", async () => {
+      const { context, respond } = await invokeWake({
+        mode: "now",
+        text: "ping",
+        sessionKey: "agent:main:subagent:worker",
+      });
+      expect(context.cron.wake).not.toHaveBeenCalled();
+      expect(respond).toHaveBeenCalledWith(false, undefined, expect.any(Object));
+    });
   });
 });
