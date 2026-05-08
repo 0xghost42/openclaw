@@ -2649,11 +2649,10 @@ export async function runEmbeddedPiAgent(
           });
 
           // Timeout aborts can leave the run without payloads or with only a
-          // partial assistant fragment. Emit an explicit timeout error instead,
-          // preserving any tool payloads that succeeded before the timeout.
+          // partial assistant fragment. Emit an explicit timeout error instead.
           if (
             timedOutDuringPrompt &&
-            !hasMessagingToolDeliveryEvidence(attempt) &&
+            !attempt.didSendViaMessagingTool &&
             !attempt.didSendDeterministicApprovalPrompt &&
             (!payloadsWithToolMedia?.length || hasPartialAssistantTextAfterPromptTimeout)
           ) {
@@ -2676,7 +2675,6 @@ export async function runEmbeddedPiAgent(
             });
             return {
               payloads: [
-                ...(hasPartialAssistantTextAfterPromptTimeout ? [] : payloadsWithToolMedia || []),
                 {
                   text: timeoutText,
                   isError: true,
