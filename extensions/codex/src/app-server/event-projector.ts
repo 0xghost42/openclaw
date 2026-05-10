@@ -9,6 +9,7 @@ import {
   normalizeUsage,
   resolveSessionAgentIds,
   runAgentHarnessAfterCompactionHook,
+  runAgentHarnessAfterToolCallHook,
   runAgentHarnessBeforeCompactionHook,
   TOOL_PROGRESS_OUTPUT_MAX_CHARS,
   type AgentMessage,
@@ -49,6 +50,10 @@ export type CodexAppServerToolTelemetry = {
   toolMediaUrls?: string[];
   toolAudioAsVoice?: boolean;
   successfulCronAdds?: number;
+};
+
+export type CodexAppServerEventProjectorOptions = {
+  nativePostToolUseRelayEnabled?: boolean;
 };
 
 const ZERO_USAGE: Usage = {
@@ -119,6 +124,7 @@ export class CodexAppServerEventProjector {
   private readonly toolTranscriptResultIds = new Set<string>();
   private readonly nativeGeneratedMediaUrls = new Set<string>();
   private readonly diagnosticToolStartedAtByItem = new Map<string, number>();
+  private readonly afterToolCallObservedItemIds = new Set<string>();
   private assistantStarted = false;
   private reasoningStarted = false;
   private reasoningEnded = false;
@@ -135,6 +141,7 @@ export class CodexAppServerEventProjector {
     private readonly params: EmbeddedRunAttemptParams,
     private readonly threadId: string,
     private readonly turnId: string,
+    private readonly options: CodexAppServerEventProjectorOptions = {},
   ) {}
 
   async handleNotification(notification: CodexServerNotification): Promise<void> {
@@ -612,6 +619,7 @@ export class CodexAppServerEventProjector {
       this.recordToolMeta(item);
       this.recordNativeToolTranscriptCall(item);
       this.recordNativeToolTranscriptResult(item);
+      this.emitAfterToolCallObservation(item);
       this.emitToolResultSummary(item);
       this.emitToolResultOutput(item);
     }
@@ -789,6 +797,9 @@ export class CodexAppServerEventProjector {
           : {}),
       },
     });
+    if (params.phase === "result") {
+      this.emitAfterToolCallObservation(item);
+    }
   }
 
   private emitDiagnosticToolExecutionEvent(params: {
@@ -837,6 +848,53 @@ export class CodexAppServerEventProjector {
               durationMs,
             };
     emitTrustedDiagnosticEvent({ ...base, ...terminalEvent });
+  }
+
+  private emitAfterToolCallObservation(item: CodexThreadItem): void {
+    if (!this.shouldEmitAfterToolCallObservation(item)) {
+      return;
+    }
+    const name = itemName(item);
+    if (!name) {
+      return;
+    }
+    const status = itemStatus(item);
+    if (status === "running") {
+      return;
+    }
+    this.afterToolCallObservedItemIds.add(item.id);
+    const result = itemToolResult(item).result;
+    const error = itemToolError(item, status);
+    const startedAt =
+      typeof item.durationMs === "number" ? Date.now() - Math.max(0, item.durationMs) : undefined;
+    const hookParams = {
+      toolName: name,
+      toolCallId: item.id,
+      runId: this.params.runId,
+      agentId: this.params.agentId,
+      sessionId: this.params.sessionId,
+      sessionKey: this.params.sessionKey,
+      startArgs: itemToolArgs(item) ?? {},
+      ...(result !== undefined ? { result } : {}),
+      ...(error ? { error } : {}),
+      ...(startedAt !== undefined ? { startedAt } : {}),
+    };
+    setImmediate(() => {
+      void runAgentHarnessAfterToolCallHook(hookParams);
+    });
+  }
+
+  private shouldEmitAfterToolCallObservation(item: CodexThreadItem): boolean {
+    if (
+      !shouldSynthesizeToolProgressForItem(item) ||
+      this.afterToolCallObservedItemIds.has(item.id)
+    ) {
+      return false;
+    }
+    if (this.options.nativePostToolUseRelayEnabled && isNativePostToolUseRelayItem(item)) {
+      return false;
+    }
+    return true;
   }
 
   private emitToolResultSummary(item: CodexThreadItem | undefined): void {
@@ -1406,6 +1464,17 @@ function shouldSynthesizeToolProgressForItem(item: CodexThreadItem): boolean {
   }
 }
 
+function isNativePostToolUseRelayItem(item: CodexThreadItem): boolean {
+  switch (item.type) {
+    case "commandExecution":
+    case "fileChange":
+    case "mcpToolCall":
+      return true;
+    default:
+      return false;
+  }
+}
+
 function shouldSuppressChannelProgressForItem(item: CodexThreadItem): boolean {
   if (shouldSynthesizeToolProgressForItem(item)) {
     return true;
@@ -1421,6 +1490,11 @@ function itemToolArgs(item: CodexThreadItem): Record<string, unknown> | undefine
     return sanitizeCodexAgentEventRecord({
       command: item.command,
       ...(typeof item.cwd === "string" ? { cwd: item.cwd } : {}),
+    });
+  }
+  if (item.type === "fileChange") {
+    return sanitizeCodexAgentEventRecord({
+      changes: itemFileChanges(item),
     });
   }
   if (item.type === "webSearch" && typeof item.query === "string") {
@@ -1446,7 +1520,7 @@ function itemToolResult(item: CodexThreadItem): { result?: Record<string, unknow
     return {
       result: sanitizeCodexAgentEventRecord({
         status: item.status,
-        changes: item.changes.map((change) => ({ path: change.path, kind: change.kind })),
+        changes: itemFileChanges(item),
       }),
     };
   }
@@ -1464,6 +1538,25 @@ function itemToolResult(item: CodexThreadItem): { result?: Record<string, unknow
     return { result: sanitizeCodexAgentEventRecord({ status: "completed" }) };
   }
   return {};
+}
+
+function itemFileChanges(item: CodexThreadItem): Array<{ path: string; kind: string }> {
+  return Array.isArray(item.changes)
+    ? item.changes.map((change) => ({ path: change.path, kind: change.kind }))
+    : [];
+}
+
+function itemToolError(
+  item: CodexThreadItem,
+  status: ReturnType<typeof itemStatus>,
+): string | undefined {
+  if (status === "blocked") {
+    return "codex native tool blocked";
+  }
+  if (status !== "failed") {
+    return undefined;
+  }
+  return itemOutputText(item) ?? "codex native tool failed";
 }
 
 function itemMeta(
