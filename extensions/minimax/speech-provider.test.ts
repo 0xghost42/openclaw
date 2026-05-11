@@ -454,7 +454,10 @@ describe("buildMinimaxSpeechProvider", () => {
       });
 
       const [, init] = vi.mocked(globalThis.fetch).mock.calls[0];
-      expect(init?.headers).toMatchObject({ Authorization: "Bearer sk-cp-env" });
+      expect(init?.headers).toEqual({
+        Authorization: "Bearer sk-cp-env",
+        "Content-Type": "application/json",
+      });
     });
 
     it("uses a minimax-portal auth profile before env API keys", async () => {
@@ -481,7 +484,10 @@ describe("buildMinimaxSpeechProvider", () => {
 
       const [url, init] = vi.mocked(globalThis.fetch).mock.calls[0];
       expect(url).toBe("https://api.minimaxi.com/v1/t2a_v2");
-      expect(init?.headers).toMatchObject({ Authorization: "Bearer portal-token" });
+      expect(init?.headers).toEqual({
+        Authorization: "Bearer portal-token",
+        "Content-Type": "application/json",
+      });
     });
 
     it("throws when API key is missing", async () => {
