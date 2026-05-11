@@ -199,7 +199,9 @@ describe("session history SSE auth revocation", () => {
       messageId: "m-1",
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => {
+      expect(res.writableEnded).toBe(true);
+    });
 
     const joined = res.writes.join("");
     expect(joined).not.toContain("event: message");
@@ -235,7 +237,9 @@ describe("session history SSE auth revocation", () => {
       messageId: "m-2",
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => {
+      expect(res.writableEnded).toBe(true);
+    });
 
     const joined = res.writes.join("");
     expect(joined).not.toContain("event: message");
@@ -271,8 +275,6 @@ describe("session history SSE auth revocation", () => {
       message: { role: "assistant", content: [{ type: "text", text: "other session" }] },
       messageId: "m-3",
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const joined = res.writes.join("");
     expect(authCheckCalls).toBe(0);
