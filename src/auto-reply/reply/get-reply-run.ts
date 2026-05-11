@@ -55,7 +55,11 @@ import {
   resolveGroupSilentReplyBehavior,
 } from "./groups.js";
 import { hasInboundMedia } from "./inbound-media.js";
-import { buildInboundMetaSystemPrompt, buildInboundUserContextPrefix } from "./inbound-meta.js";
+import {
+  buildInboundMetaSystemPrompt,
+  buildInboundUserContextPrefix,
+  resolveInboundUserContextPromptJoiner,
+} from "./inbound-meta.js";
 import type { createModelSelectionState } from "./model-selection.js";
 import { resolveOriginMessageProvider } from "./origin-routing.js";
 import { buildReplyPromptBodies } from "./prompt-prelude.js";
@@ -721,7 +725,12 @@ export async function runPreparedReply(
     () => rebuildPromptBodies(),
   );
   const currentTurnContext: CurrentTurnPromptContext | undefined =
-    !isBareSessionReset && inboundUserContext.trim() ? { text: inboundUserContext } : undefined;
+    !isBareSessionReset && inboundUserContext.trim()
+      ? {
+          text: inboundUserContext,
+          promptJoiner: resolveInboundUserContextPromptJoiner(sessionCtx),
+        }
+      : undefined;
   if (!resolvedThinkLevel) {
     resolvedThinkLevel = await modelState.resolveDefaultThinkingLevel();
   }
