@@ -1276,7 +1276,6 @@ describe("handleFeishuMessage command authorization", () => {
     expect(finalized.OriginatingTo).toBe("chat:oc-group");
     expect(finalized.SenderId).toBe("ou-allowed");
     const groupSessionKey = resolveGroupSessionKey(finalized as never);
-    expect(groupSessionKey).not.toBeNull();
     if (!groupSessionKey) {
       throw new Error("Expected group session key");
     }
