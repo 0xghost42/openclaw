@@ -747,6 +747,7 @@ export async function runEmbeddedPiAgent(
           })
         : authStore;
       const requestedProfileId = params.authProfileId?.trim();
+      const requestedProfileIsUserLocked = params.authProfileIdSource === "user";
       const isForwardablePluginHarnessAuthProfile = (
         profileId: string | undefined,
       ): profileId is string => {
@@ -768,7 +769,7 @@ export async function runEmbeddedPiAgent(
         return runtimeAuthPlan.forwardedAuthProfileId === profileId;
       };
       const resolvePluginHarnessProfileOrder = (): string[] => {
-        if (requestedProfileId) {
+        if (requestedProfileId && requestedProfileIsUserLocked) {
           return isForwardablePluginHarnessAuthProfile(requestedProfileId)
             ? [requestedProfileId]
             : [];
@@ -788,11 +789,18 @@ export async function runEmbeddedPiAgent(
         if (!harnessAuthProvider) {
           return [];
         }
-        return resolveAuthProfileOrder({
+        const resolvedOrder = resolveAuthProfileOrder({
           cfg: params.config,
           store: attemptAuthProfileStore,
           provider: harnessAuthProvider,
         }).filter(isForwardablePluginHarnessAuthProfile);
+        if (resolvedOrder.length > 0) {
+          return resolvedOrder;
+        }
+        if (requestedProfileId && isForwardablePluginHarnessAuthProfile(requestedProfileId)) {
+          return [requestedProfileId];
+        }
+        return [];
       };
       const pluginHarnessProfileOrder = pluginHarnessOwnsTransport
         ? resolvePluginHarnessProfileOrder()
@@ -802,7 +810,7 @@ export async function runEmbeddedPiAgent(
       const preferredProfileId = pluginHarnessOwnsTransport
         ? resolvePluginHarnessPreferredProfileId()
         : requestedProfileId;
-      let lockedProfileId = params.authProfileIdSource === "user" ? preferredProfileId : undefined;
+      let lockedProfileId = requestedProfileIsUserLocked ? preferredProfileId : undefined;
       if (lockedProfileId) {
         if (pluginHarnessOwnsTransport) {
           if (!isForwardablePluginHarnessAuthProfile(lockedProfileId)) {
