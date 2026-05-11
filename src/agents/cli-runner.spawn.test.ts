@@ -489,7 +489,10 @@ describe("runCliAgent spawn path", () => {
           },
         }),
       );
-      await expect(fs.access(pluginDir)).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(fs.access(pluginDir)).rejects.toSatisfy((error) => {
+        expect((error as NodeJS.ErrnoException).code).toBe("ENOENT");
+        return true;
+      });
     } finally {
       await fs.rm(workspaceDir, { recursive: true, force: true });
     }
