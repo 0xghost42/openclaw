@@ -31,7 +31,7 @@ function createLegacyRuntimeListConfig(
   models?: Record<string, Record<string, never>>,
 ): OpenClawConfig {
   return createModelDefaultsConfig({
-    primary: "google-gemini-cli/gemini-3-pro-preview",
+    primary: "google-gemini-cli/gemini-3.1-pro-preview",
     ...(models ? { models } : {}),
   });
 }
