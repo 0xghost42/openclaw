@@ -57,6 +57,17 @@ function collectWikiResultPaths(results: readonly { corpus: string; path: string
   return paths;
 }
 
+function expectFields(value: unknown, expected: Record<string, unknown>): Record<string, unknown> {
+  if (!value || typeof value !== "object") {
+    throw new Error("Expected object");
+  }
+  const record = value as Record<string, unknown>;
+  for (const [key, expectedValue] of Object.entries(expected)) {
+    expect(record[key]).toBe(expectedValue);
+  }
+  return record;
+}
+
 beforeEach(() => {
   getActiveMemorySearchManagerMock.mockReset();
   getActiveMemorySearchManagerMock.mockResolvedValue({ manager: null, error: "unavailable" });
@@ -494,7 +505,7 @@ describe("searchMemoryWiki", () => {
     const results = await searchMemoryWiki({ config, query: "postgresql" });
 
     expect(results).toHaveLength(1);
-    expect(results[0]).toMatchObject({
+    expectFields(results[0], {
       corpus: "wiki",
       path: "entities/alpha.md",
       snippet: "Alpha uses PostgreSQL for production writes.",
@@ -594,7 +605,7 @@ describe("searchMemoryWiki", () => {
     const results = await searchMemoryWiki({ config, query: "alpha" });
 
     expect(results).toHaveLength(1);
-    expect(results[0]).toMatchObject({
+    expectFields(results[0], {
       corpus: "wiki",
       sourceType: "memory-bridge",
       sourcePath: "/tmp/workspace/MEMORY.md",
@@ -1008,7 +1019,7 @@ describe("getMemoryWikiPage", () => {
       lookup: "claim.alpha.db",
     });
 
-    expect(result).toMatchObject({
+    expectFields(result, {
       corpus: "wiki",
       path: "entities/alpha.md",
       title: "Alpha",
@@ -1045,7 +1056,7 @@ describe("getMemoryWikiPage", () => {
       lookup: "sources/unsafe-alpha.md",
     });
 
-    expect(result).toMatchObject({
+    expectFields(result, {
       corpus: "wiki",
       path: "sources/unsafe-alpha.md",
       sourceType: "memory-unsafe-local",
@@ -1147,7 +1158,7 @@ describe("getMemoryWikiPage", () => {
       lookup: "transcript:main:child-session",
     });
 
-    expect(result).toMatchObject({
+    expectFields(result, {
       corpus: "memory",
       path: "transcript:main:child-session",
       content: "own transcript content",
