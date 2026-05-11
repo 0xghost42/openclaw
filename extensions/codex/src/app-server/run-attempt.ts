@@ -901,6 +901,7 @@ export async function runCodexAppServerAttempt(
   let turnCompletionLastActivityReason = "startup";
   let turnCompletionLastActivityDetails: Record<string, unknown> | undefined;
   let activeAppServerTurnRequests = 0;
+  let sawTurnScopedRequestResponse = false;
 
   const clearTurnCompletionIdleTimer = () => {
     if (turnCompletionIdleTimer) {
@@ -1161,7 +1162,9 @@ export async function runCodexAppServerAttempt(
     // See openclaw/openclaw#67996.
     const isTurnCompletion = notification.method === "turn/completed" && isCurrentTurnNotification;
     const isTurnAbortMarker =
-      isCurrentTurnNotification && isCodexTurnAbortMarkerNotification(notification);
+      isCurrentTurnNotification &&
+      sawTurnScopedRequestResponse &&
+      isCodexTurnAbortMarkerNotification(notification);
     const isTurnTerminal = isTurnCompletion || isTurnAbortMarker;
     try {
       await projector.handleNotification(notification);
@@ -1324,6 +1327,9 @@ export async function runCodexAppServerAttempt(
       return response as JsonValue;
     } finally {
       activeAppServerTurnRequests = Math.max(0, activeAppServerTurnRequests - 1);
+      if (armCompletionWatchOnResponse) {
+        sawTurnScopedRequestResponse = true;
+      }
       touchTurnCompletionActivity(`request:${request.method}:response`, {
         arm: armCompletionWatchOnResponse,
       });
@@ -2375,10 +2381,12 @@ function isCodexTurnAbortMarkerNotification(notification: CodexServerNotificatio
     return false;
   }
   const item = notification.params.item;
-  if (!isJsonObject(item) || readString(item, "role") !== "user") {
+  const role = isJsonObject(item) ? readString(item, "role") : undefined;
+  if (!isJsonObject(item) || (role !== "user" && role !== "developer")) {
     return false;
   }
-  return extractRawResponseItemText(item).includes("<turn_aborted>");
+  const text = extractRawResponseItemText(item).trim();
+  return text.startsWith("<turn_aborted>") && text.includes("</turn_aborted>");
 }
 
 function extractRawResponseItemText(item: JsonObject): string {
