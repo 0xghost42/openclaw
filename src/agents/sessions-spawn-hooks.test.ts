@@ -69,6 +69,13 @@ function expectFields(value: unknown, expected: Record<string, unknown>, label =
   }
 }
 
+function expectSubagentSessionKey(value: unknown, label: string): string {
+  expect(value, label).toBeTypeOf("string");
+  const sessionKey = value as string;
+  expect(sessionKey.startsWith("agent:main:subagent:")).toBe(true);
+  return sessionKey;
+}
+
 function setConfig(next: Record<string, unknown>) {
   hoisted.configOverride = createSubagentSpawnTestConfig(undefined, next);
 }
@@ -228,9 +235,16 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
 
     expectFields(result, { status: "accepted", runId: "run-1" }, "spawn result");
     expect(hookRunnerMocks.runSubagentSpawning).toHaveBeenCalledTimes(1);
-    expect(hookRunnerMocks.runSubagentSpawning).toHaveBeenCalledWith(
+    const [spawningEvent, spawningContext] = (hookRunnerMocks.runSubagentSpawning.mock.calls[0] ??
+      []) as unknown as [Record<string, unknown>, Record<string, unknown>];
+    const spawningChildSessionKey = expectSubagentSessionKey(
+      spawningEvent?.childSessionKey,
+      "spawning event child session key",
+    );
+    expectFields(
+      spawningEvent,
       {
-        childSessionKey: expect.stringMatching(/^agent:main:subagent:/),
+        childSessionKey: spawningChildSessionKey,
         agentId: "main",
         label: "research",
         mode: "session",
@@ -242,10 +256,15 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
         },
         threadRequested: true,
       },
+      "spawning event",
+    );
+    expectFields(
+      spawningContext,
       {
-        childSessionKey: expect.stringMatching(/^agent:main:subagent:/),
+        childSessionKey: spawningChildSessionKey,
         requesterSessionKey: "main",
       },
+      "spawning context",
     );
 
     expect(hookRunnerMocks.runSubagentSpawned).toHaveBeenCalledTimes(1);
@@ -274,7 +293,7 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
       },
       "spawned requester",
     );
-    expect(event.childSessionKey).toEqual(expect.stringMatching(/^agent:main:subagent:/));
+    expectSubagentSessionKey(event.childSessionKey, "spawned event child session key");
     expectFields(
       ctx,
       {
@@ -417,7 +436,7 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
     const [event] = (hookRunnerMocks.runSubagentEnded.mock.calls[0] ?? []) as unknown as [
       Record<string, unknown>,
     ];
-    expect(event.targetSessionKey).toEqual(expect.stringMatching(/^agent:main:subagent:/));
+    expectSubagentSessionKey(event.targetSessionKey, "ended event target session key");
     expectFields(
       event,
       {
