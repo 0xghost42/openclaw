@@ -929,6 +929,7 @@ describe("codex command", () => {
       {
         config,
         authProfileId: "openai:personal-email@gmail.com",
+        isolated: true,
       },
     );
   });
