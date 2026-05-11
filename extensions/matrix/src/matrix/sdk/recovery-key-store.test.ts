@@ -70,6 +70,31 @@ function createRecoveryKeyCrypto(params: {
   } as unknown as MatrixCryptoBootstrapApi;
 }
 
+function bootstrapSecretStorageCallArg(
+  bootstrapSecretStorage: ReturnType<typeof vi.fn>,
+  index: number,
+) {
+  const call = bootstrapSecretStorage.mock.calls[index];
+  if (!call) {
+    throw new Error(`expected bootstrapSecretStorage call ${index}`);
+  }
+  return call[0] as { setupNewSecretStorage?: boolean } | undefined;
+}
+
+function expectRecoveryKeySummary(
+  store: MatrixRecoveryKeyStore,
+  expected: { keyId: string; encodedPrivateKey?: string },
+) {
+  const summary = store.getRecoveryKeySummary();
+  if (!summary) {
+    throw new Error("expected recovery key summary");
+  }
+  expect(summary.keyId).toBe(expected.keyId);
+  if (expected.encodedPrivateKey !== undefined) {
+    expect(summary.encodedPrivateKey).toBe(expected.encodedPrivateKey);
+  }
+}
+
 async function runSecretStorageBootstrapScenario(params: {
   generated: ReturnType<typeof createGeneratedRecoveryKey>;
   status: MatrixSecretStorageStatus;
@@ -154,12 +179,10 @@ describe("MatrixRecoveryKeyStore", () => {
       });
 
     expect(createRecoveryKeyFromPassphrase).toHaveBeenCalledTimes(1);
-    expect(bootstrapSecretStorage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        setupNewSecretStorage: true,
-      }),
+    expect(bootstrapSecretStorageCallArg(bootstrapSecretStorage, 0)?.setupNewSecretStorage).toBe(
+      true,
     );
-    expect(store.getRecoveryKeySummary()).toMatchObject({
+    expectRecoveryKeySummary(store, {
       keyId: "GENERATED",
       encodedPrivateKey: "encoded-generated-key", // pragma: allowlist secret
     });
@@ -191,7 +214,7 @@ describe("MatrixRecoveryKeyStore", () => {
     await store.bootstrapSecretStorageWithRecoveryKey(crypto);
 
     expect(createRecoveryKeyFromPassphrase).not.toHaveBeenCalled();
-    expect(store.getRecoveryKeySummary()).toMatchObject({
+    expectRecoveryKeySummary(store, {
       keyId: "NEW",
     });
   });
@@ -209,12 +232,10 @@ describe("MatrixRecoveryKeyStore", () => {
       });
 
     expect(createRecoveryKeyFromPassphrase).toHaveBeenCalledTimes(1);
-    expect(bootstrapSecretStorage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        setupNewSecretStorage: true,
-      }),
+    expect(bootstrapSecretStorageCallArg(bootstrapSecretStorage, 0)?.setupNewSecretStorage).toBe(
+      true,
     );
-    expect(store.getRecoveryKeySummary()).toMatchObject({
+    expectRecoveryKeySummary(store, {
       keyId: "RECOVERED",
       encodedPrivateKey: "encoded-recovered-key", // pragma: allowlist secret
     });
@@ -240,12 +261,10 @@ describe("MatrixRecoveryKeyStore", () => {
 
     expect(createRecoveryKeyFromPassphrase).toHaveBeenCalledTimes(1);
     expect(bootstrapSecretStorage).toHaveBeenCalledTimes(2);
-    expect(bootstrapSecretStorage).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        setupNewSecretStorage: true,
-      }),
+    expect(bootstrapSecretStorageCallArg(bootstrapSecretStorage, 1)?.setupNewSecretStorage).toBe(
+      true,
     );
-    expect(store.getRecoveryKeySummary()).toMatchObject({
+    expectRecoveryKeySummary(store, {
       keyId: "REPAIRED",
       encodedPrivateKey: "encoded-repaired-key", // pragma: allowlist secret
     });
@@ -271,10 +290,8 @@ describe("MatrixRecoveryKeyStore", () => {
 
     expect(createRecoveryKeyFromPassphrase).toHaveBeenCalledTimes(1);
     expect(bootstrapSecretStorage).toHaveBeenCalledTimes(2);
-    expect(bootstrapSecretStorage).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        setupNewSecretStorage: true,
-      }),
+    expect(bootstrapSecretStorageCallArg(bootstrapSecretStorage, 1)?.setupNewSecretStorage).toBe(
+      true,
     );
   });
 
