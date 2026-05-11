@@ -1161,7 +1161,8 @@ export async function runCodexAppServerAttempt(
     // See openclaw/openclaw#67996.
     const isTurnCompletion = notification.method === "turn/completed" && isCurrentTurnNotification;
     const isTurnAbortMarker =
-      isCurrentTurnNotification && isCodexTurnAbortMarkerNotification(notification);
+      isCurrentTurnNotification &&
+      isCodexTurnAbortMarkerNotification(notification, { currentPromptText: promptBuild.prompt });
     const isTurnTerminal = isTurnCompletion || isTurnAbortMarker;
     try {
       await projector.handleNotification(notification);
@@ -2377,7 +2378,10 @@ const CODEX_INTERRUPTED_USER_GUIDANCE =
 const CODEX_INTERRUPTED_DEVELOPER_GUIDANCE =
   "The previous turn was interrupted on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.";
 
-function isCodexTurnAbortMarkerNotification(notification: CodexServerNotification): boolean {
+function isCodexTurnAbortMarkerNotification(
+  notification: CodexServerNotification,
+  options: { currentPromptText?: string } = {},
+): boolean {
   if (notification.method !== "rawResponseItem/completed" || !isJsonObject(notification.params)) {
     return false;
   }
@@ -2387,6 +2391,9 @@ function isCodexTurnAbortMarkerNotification(notification: CodexServerNotificatio
     return false;
   }
   const text = extractRawResponseItemText(item).trim();
+  if (role === "user" && text === options.currentPromptText?.trim()) {
+    return false;
+  }
   const markerBody = readCodexTurnAbortMarkerBody(text);
   return (
     markerBody === CODEX_INTERRUPTED_USER_GUIDANCE ||
