@@ -3025,7 +3025,7 @@ describe("runCodexAppServerAttempt", () => {
         },
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await new Promise<void>((resolve) => setImmediate(resolve));
     expect(resolved).toBe(false);
 
     await harness.notify({
@@ -3116,7 +3116,7 @@ describe("runCodexAppServerAttempt", () => {
         },
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise<void>((resolve) => setImmediate(resolve));
     expect(resolved).toBe(false);
 
     await harness.notify({
