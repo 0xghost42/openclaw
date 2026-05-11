@@ -45,13 +45,15 @@ describe("refreshQueuedFollowupSession", () => {
       nextAuthProfileIdSource: undefined,
     });
 
-    expect(queue.lastRun).toMatchObject({
+    expect(queue.lastRun).toEqual({
+      ...makeRun(),
       provider: "openai",
       model: "gpt-4o",
       authProfileId: undefined,
       authProfileIdSource: undefined,
     });
-    expect(queue.items[0]?.run).toMatchObject({
+    expect(queue.items[0]?.run).toEqual({
+      ...makeRun(),
       provider: "openai",
       model: "gpt-4o",
       authProfileId: undefined,
@@ -75,7 +77,8 @@ describe("refreshQueuedFollowupSession", () => {
       nextModelOverrideSource: "user",
     });
 
-    expect(queue.items[0]?.run).toMatchObject({
+    expect(queue.items[0]?.run).toEqual({
+      ...makeRun(),
       provider: "ollama",
       model: "qwen3.5:27b",
       hasSessionModelOverride: true,
