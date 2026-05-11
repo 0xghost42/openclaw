@@ -1846,27 +1846,30 @@ describe("session_status tool", () => {
     expect(sessionRowsMock).toHaveBeenCalledWith("main");
     expect(upsertSessionEntryMock).not.toHaveBeenCalled();
     expect(callGatewayMock).toHaveBeenCalledTimes(3);
-    expect(callGatewayMock.mock.calls).toContainEqual([
-      {
-        method: "sessions.resolve",
-        params: {
-          sessionId: "s-other",
-          spawnedBy: "agent:main:subagent:child",
-          includeGlobal: false,
-          includeUnknown: false,
-        },
+    expect(callGatewayMock).toHaveBeenNthCalledWith(1, {
+      method: "sessions.list",
+      params: {
+        includeGlobal: false,
+        includeUnknown: false,
+        spawnedBy: "agent:main:subagent:child",
       },
-    ]);
-    expect(callGatewayMock.mock.calls).toContainEqual([
-      {
-        method: "sessions.list",
-        params: {
-          includeGlobal: false,
-          includeUnknown: false,
-          spawnedBy: "agent:main:subagent:child",
-        },
+    });
+    expect(callGatewayMock).toHaveBeenNthCalledWith(2, {
+      method: "sessions.resolve",
+      params: {
+        key: "s-other",
+        spawnedBy: "agent:main:subagent:child",
       },
-    ]);
+    });
+    expect(callGatewayMock).toHaveBeenNthCalledWith(3, {
+      method: "sessions.resolve",
+      params: {
+        sessionId: "s-other",
+        spawnedBy: "agent:main:subagent:child",
+        includeGlobal: false,
+        includeUnknown: false,
+      },
+    });
   });
 
   it("blocks sandboxed child session_status parent sessionId access outside its tree", async () => {
@@ -1897,27 +1900,30 @@ describe("session_status tool", () => {
     expect(sessionRowsMock).toHaveBeenCalledWith("main");
     expect(upsertSessionEntryMock).not.toHaveBeenCalled();
     expect(callGatewayMock).toHaveBeenCalledTimes(3);
-    expect(callGatewayMock.mock.calls).toContainEqual([
-      {
-        method: "sessions.resolve",
-        params: {
-          sessionId: "s-parent",
-          spawnedBy: "agent:main:subagent:child",
-          includeGlobal: false,
-          includeUnknown: false,
-        },
+    expect(callGatewayMock).toHaveBeenNthCalledWith(1, {
+      method: "sessions.list",
+      params: {
+        includeGlobal: false,
+        includeUnknown: false,
+        spawnedBy: "agent:main:subagent:child",
       },
-    ]);
-    expect(callGatewayMock.mock.calls).toContainEqual([
-      {
-        method: "sessions.list",
-        params: {
-          includeGlobal: false,
-          includeUnknown: false,
-          spawnedBy: "agent:main:subagent:child",
-        },
+    });
+    expect(callGatewayMock).toHaveBeenNthCalledWith(2, {
+      method: "sessions.resolve",
+      params: {
+        key: "s-parent",
+        spawnedBy: "agent:main:subagent:child",
       },
-    ]);
+    });
+    expect(callGatewayMock).toHaveBeenNthCalledWith(3, {
+      method: "sessions.resolve",
+      params: {
+        sessionId: "s-parent",
+        spawnedBy: "agent:main:subagent:child",
+        includeGlobal: false,
+        includeUnknown: false,
+      },
+    });
   });
 
   it("keeps legacy main requester keys for sandboxed session tree checks", async () => {
