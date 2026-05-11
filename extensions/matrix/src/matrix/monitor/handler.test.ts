@@ -165,15 +165,22 @@ function requireArray(value: unknown, label: string): Array<unknown> {
 
 function mockCalls(mock: unknown, label: string): Array<Array<unknown>> {
   const mockState = (mock as { mock?: { calls?: Array<Array<unknown>> } }).mock;
-  expect(mockState, `${label}.mock`).toBeDefined();
-  expect(Array.isArray(mockState?.calls), `${label}.mock.calls`).toBe(true);
-  return mockState?.calls ?? [];
+  if (!mockState) {
+    throw new Error(`${label}.mock was missing`);
+  }
+  const calls = mockState.calls;
+  if (!Array.isArray(calls)) {
+    throw new Error(`${label}.mock.calls was not an array`);
+  }
+  return calls;
 }
 
 function callArg(mock: unknown, callIndex: number, argIndex: number, label: string) {
   const call = mockCalls(mock, label).at(callIndex);
-  expect(call, label).toBeDefined();
-  return call?.[argIndex];
+  if (!call) {
+    throw new Error(`${label} call ${callIndex} was missing`);
+  }
+  return call[argIndex];
 }
 
 function lastCallArg(mock: unknown, argIndex: number, label: string) {
@@ -207,8 +214,10 @@ function expectRuntimeErrorContaining(mock: unknown, text: string) {
 
 function findMockCall(mock: unknown, label: string, predicate: (call: Array<unknown>) => boolean) {
   const call = mockCalls(mock, label).find(predicate);
-  expect(call, label).toBeDefined();
-  return call as Array<unknown>;
+  if (!call) {
+    throw new Error(`${label} was missing`);
+  }
+  return call;
 }
 
 function expectMatrixEdit(roomId: string, eventId: string, body: string) {
@@ -218,7 +227,7 @@ function expectMatrixEdit(roomId: string, eventId: string, body: string) {
     ([room, editedEventId, editedBody]) =>
       room === roomId && editedEventId === eventId && editedBody === body,
   );
-  expect(call[3], "edit options").toBeDefined();
+  requireRecord(call[3], "edit options");
 }
 
 function expectFinalizedPreviewEdit(eventId: string, text: string) {
@@ -755,7 +764,7 @@ describe("matrix monitor handler pairing account scope", () => {
     );
 
     expect(callArg(hasControlCommand, 0, 0, "control command")).toBe("/new");
-    expect(callArg(hasControlCommand, 0, 1, "control command")).toBeDefined();
+    requireRecord(callArg(hasControlCommand, 0, 1, "control command"), "control command context");
     expect(recordInboundSession).not.toHaveBeenCalled();
     expect(finalizeInboundContext).not.toHaveBeenCalled();
   });
@@ -781,7 +790,7 @@ describe("matrix monitor handler pairing account scope", () => {
     );
 
     expect(callArg(hasControlCommand, 0, 0, "control command")).toBe("/new");
-    expect(callArg(hasControlCommand, 0, 1, "control command")).toBeDefined();
+    requireRecord(callArg(hasControlCommand, 0, 1, "control command"), "control command context");
     const context = requireRecord(
       callArg(finalizeInboundContext, 0, 0, "finalized context"),
       "finalized context",
@@ -1106,7 +1115,6 @@ describe("matrix monitor handler pairing account scope", () => {
       );
 
       expect(callArg(sendNotice, 0, 0, "send notice")).toBe("!dm:example.org");
-      expect(callArg(sendNotice, 0, 1, "send notice")).toBeDefined();
       expectNoticeSent(sendNotice);
 
       await handler(
@@ -1159,7 +1167,6 @@ describe("matrix monitor handler pairing account scope", () => {
       );
 
       expect(callArg(sendNotice, 0, 0, "send notice")).toBe("!dm:example.org");
-      expect(callArg(sendNotice, 0, 1, "send notice")).toBeDefined();
       expectNoticeSent(sendNotice);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -1210,7 +1217,6 @@ describe("matrix monitor handler pairing account scope", () => {
       );
 
       expect(callArg(sendNotice, 0, 0, "send notice")).toBe("!dm:example.org");
-      expect(callArg(sendNotice, 0, 1, "send notice")).toBeDefined();
       expectNoticeSent(sendNotice);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -1251,7 +1257,6 @@ describe("matrix monitor handler pairing account scope", () => {
       );
 
       expect(callArg(sendNotice, 0, 0, "send notice")).toBe("!dm:example.org");
-      expect(callArg(sendNotice, 0, 1, "send notice")).toBeDefined();
       expectNoticeSent(sendNotice);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
