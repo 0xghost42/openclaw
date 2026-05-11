@@ -484,8 +484,9 @@ describe("dispatchTelegramMessage draft streaming", () => {
     });
     expect(draftStream.update).toHaveBeenCalledWith("Hello");
     const delivery = expectDeliverRepliesParams({ thread: { id: 777, scope: "dm" } });
-    expect(delivery.mediaLocalRoots).toContainEqual(
-      expect.stringMatching(/[\\/]\.openclaw[\\/]workspace-work$/u),
+    const mediaLocalRoots = delivery.mediaLocalRoots as string[] | undefined;
+    expect(mediaLocalRoots?.some((root) => /[\\/]\.openclaw[\\/]workspace-work$/u.test(root))).toBe(
+      true,
     );
     const dispatchParams = expectDispatchParams({});
     expect(
@@ -1006,7 +1007,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
       telegramCfg: { streaming: { mode: "partial" } },
     });
 
-    expect(answerDraftStream.update).toHaveBeenNthCalledWith(1, expect.stringMatching(/Exec/));
+    expect(answerDraftStream.update.mock.calls[0]?.[0]).toContain("Exec");
     expect(answerDraftStream.update).toHaveBeenNthCalledWith(2, "Done ");
     expect(answerDraftStream.update).toHaveBeenNthCalledWith(3, "Done answer");
     expect(answerDraftStream.update).toHaveBeenLastCalledWith("Done answer.");
@@ -1076,7 +1077,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
     });
 
     expect(answerDraftStream.update).toHaveBeenCalledWith(
-      expect.stringMatching(/`🛠️ git rev-parse --abbrev-ref HEAD`$/),
+      "Cracking...\n`🛠️ Exec`\n`🛠️ git rev-parse --abbrev-ref HEAD`",
     );
     expect(answerDraftStream.update).not.toHaveBeenCalledWith("Branch is up to date");
     expect(answerDraftStream.clear).toHaveBeenCalledTimes(1);
@@ -1139,7 +1140,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
       telegramCfg: { streaming: { mode: "progress", progress: { label: "Shelling" } } },
     });
 
-    expect(draftStream.update).toHaveBeenCalledWith(expect.stringMatching(/^Shelling\n`🛠️ Exec`$/));
+    expect(draftStream.update).toHaveBeenCalledWith("Shelling\n`🛠️ Exec`");
     expect(draftStream.flush).toHaveBeenCalled();
   });
 
@@ -1198,7 +1199,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
     });
 
     expect(draftStream.update).toHaveBeenCalledWith(
-      expect.stringMatching(/^Shelling\n`🔎 Web Search: docs lookup`\n• `tests passed`$/),
+      "Shelling\n`🔎 Web Search: docs lookup`\n• `tests passed`",
     );
     expect(draftStream.forceNewMessage).not.toHaveBeenCalled();
     expect(draftStream.materialize).not.toHaveBeenCalled();
