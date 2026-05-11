@@ -129,13 +129,27 @@ type FileMeta = {
 
 type WorkspaceRoot = Awaited<ReturnType<typeof root>>;
 
+function isRegularWorkspaceFileStat(stat: {
+  isFile: boolean | (() => boolean);
+  isSymbolicLink: boolean | (() => boolean);
+  nlink: number;
+}): boolean {
+  const isFile = typeof stat.isFile === "function" ? stat.isFile() : stat.isFile;
+  const isSymbolicLink =
+    typeof stat.isSymbolicLink === "function" ? stat.isSymbolicLink() : stat.isSymbolicLink;
+  return isFile && !isSymbolicLink && stat.nlink <= 1;
+}
+
 async function statWorkspaceFileSafely(
-  workspaceRoot: WorkspaceRoot,
+  workspaceRoot: WorkspaceRoot | null,
+  workspaceDir: string,
   name: string,
 ): Promise<FileMeta | null> {
   try {
-    const stat = await workspaceRoot.stat(name);
-    if (!stat.isFile || stat.isSymbolicLink || stat.nlink > 1) {
+    const stat = workspaceRoot
+      ? await workspaceRoot.stat(name)
+      : await fs.lstat(path.join(workspaceDir, name));
+    if (!isRegularWorkspaceFileStat(stat)) {
       return null;
     }
     return {
@@ -143,7 +157,21 @@ async function statWorkspaceFileSafely(
       updatedAtMs: Math.floor(stat.mtimeMs),
     };
   } catch {
-    return null;
+    if (!workspaceRoot) {
+      return null;
+    }
+    try {
+      const stat = await fs.lstat(path.join(workspaceDir, name));
+      if (!isRegularWorkspaceFileStat(stat)) {
+        return null;
+      }
+      return {
+        size: stat.size,
+        updatedAtMs: Math.floor(stat.mtimeMs),
+      };
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -182,7 +210,7 @@ async function listAgentFiles(workspaceDir: string, options?: { hideBootstrap?: 
     : BOOTSTRAP_FILE_NAMES;
   for (const name of bootstrapFileNames) {
     const filePath = path.join(workspaceDir, name);
-    const meta = await statWorkspaceFileSafely(workspaceRoot, name);
+    const meta = await statWorkspaceFileSafely(workspaceRoot, workspaceDir, name);
     if (meta) {
       files.push({
         name,
@@ -196,7 +224,11 @@ async function listAgentFiles(workspaceDir: string, options?: { hideBootstrap?: 
     }
   }
 
-  const primaryMeta = await statWorkspaceFileSafely(workspaceRoot, DEFAULT_MEMORY_FILENAME);
+  const primaryMeta = await statWorkspaceFileSafely(
+    workspaceRoot,
+    workspaceDir,
+    DEFAULT_MEMORY_FILENAME,
+  );
   if (primaryMeta) {
     files.push({
       name: DEFAULT_MEMORY_FILENAME,
@@ -762,7 +794,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
       respondWorkspaceFileUnsafe(respond, name);
       return;
     }
-    const meta = await statWorkspaceFileSafely(workspaceRoot, name);
+    const meta = await statWorkspaceFileSafely(workspaceRoot, workspaceDir, name);
     respond(
       true,
       {
