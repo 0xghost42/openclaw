@@ -43,7 +43,9 @@ function requireFailureByHookId(
   hookId: string,
 ) {
   const failure = result.failures.find((entry) => entry.hookId === hookId);
-  expect(failure).toBeTruthy();
+  if (!failure) {
+    throw new Error(`Expected cleanup failure for hook ${hookId}`);
+  }
   return failure;
 }
 
