@@ -42,6 +42,19 @@ function startCompaction(sessionId: string, options: { currentTokenCount?: numbe
   });
 }
 
+type CompactResult = NonNullable<Awaited<ReturnType<typeof maybeCompactCodexAppServerSession>>>;
+
+function requireCompactResult(result: CompactResult | undefined): CompactResult {
+  if (!result) {
+    throw new Error("expected compaction result");
+  }
+  return result;
+}
+
+function compactDetails(result: CompactResult): Record<string, unknown> {
+  return (result.result?.details ?? {}) as Record<string, unknown>;
+}
+
 describe("maybeCompactCodexAppServerSession", () => {
   beforeEach(async () => {
     await clearCodexAppServerBinding({ sessionKey: "agent:main:session-1" });
@@ -77,21 +90,16 @@ describe("maybeCompactCodexAppServerSession", () => {
       method: "thread/compacted",
       params: { threadId: "thread-1", turnId: "turn-1" },
     });
-    const result = await pendingResult;
+    const result = requireCompactResult(await pendingResult);
 
-    expect(result).toMatchObject({
-      ok: true,
-      compacted: true,
-      result: {
-        tokensBefore: 123,
-        details: {
-          backend: "codex-app-server",
-          threadId: "thread-1",
-          signal: "thread/compacted",
-          turnId: "turn-1",
-        },
-      },
-    });
+    expect(result.ok).toBe(true);
+    expect(result.compacted).toBe(true);
+    expect(result.result?.tokensBefore).toBe(123);
+    const details = compactDetails(result);
+    expect(details.backend).toBe("codex-app-server");
+    expect(details.threadId).toBe("thread-1");
+    expect(details.signal).toBe("thread/compacted");
+    expect(details.turnId).toBe("turn-1");
   });
 
   it("accepts native context-compaction item completion as success", async () => {
@@ -112,16 +120,12 @@ describe("maybeCompactCodexAppServerSession", () => {
       },
     });
 
-    await expect(pendingResult).resolves.toMatchObject({
-      ok: true,
-      compacted: true,
-      result: {
-        details: {
-          signal: "item/completed",
-          itemId: "compact-1",
-        },
-      },
-    });
+    const result = requireCompactResult(await pendingResult);
+    expect(result.ok).toBe(true);
+    expect(result.compacted).toBe(true);
+    const details = compactDetails(result);
+    expect(details.signal).toBe("item/completed");
+    expect(details.itemId).toBe("compact-1");
   });
 
   it("reuses the bound auth profile for native compaction", async () => {
@@ -243,26 +247,25 @@ describe("maybeCompactCodexAppServerSession", () => {
       params: { threadId: "thread-1", turnId: "turn-1" },
     });
 
-    await expect(pendingResult).resolves.toMatchObject({
-      ok: true,
-      compacted: true,
-      result: {
-        summary: "engine summary",
-        firstKeptEntryId: "entry-1",
-        tokensBefore: 55,
-        details: {
-          engine: "lossless-claw",
-          codexNativeCompaction: {
-            ok: true,
-            compacted: true,
-            details: {
-              backend: "codex-app-server",
-              threadId: "thread-1",
-            },
-          },
-        },
-      },
-    });
+    const result = requireCompactResult(await pendingResult);
+    expect(result.ok).toBe(true);
+    expect(result.compacted).toBe(true);
+    expect(result.result?.summary).toBe("engine summary");
+    expect(result.result?.firstKeptEntryId).toBe("entry-1");
+    expect(result.result?.tokensBefore).toBe(55);
+    const details = compactDetails(result);
+    expect(details.engine).toBe("lossless-claw");
+    const nativeDetails = details.codexNativeCompaction as
+      | {
+          ok?: boolean;
+          compacted?: boolean;
+          details?: { backend?: string; threadId?: string };
+        }
+      | undefined;
+    expect(nativeDetails?.ok).toBe(true);
+    expect(nativeDetails?.compacted).toBe(true);
+    expect(nativeDetails?.details?.backend).toBe("codex-app-server");
+    expect(nativeDetails?.details?.threadId).toBe("thread-1");
     expect(compact).toHaveBeenCalledTimes(1);
     const [compactCall] = compact.mock.calls[0] ?? [];
     expect(compactCall).toStrictEqual({
@@ -326,18 +329,14 @@ describe("maybeCompactCodexAppServerSession", () => {
       params: { threadId: "thread-1", turnId: "turn-1" },
     });
 
-    await expect(pendingResult).resolves.toMatchObject({
-      ok: true,
-      compacted: true,
-      result: {
-        details: {
-          codexNativeCompaction: {
-            ok: true,
-            compacted: true,
-          },
-        },
-      },
-    });
+    const result = requireCompactResult(await pendingResult);
+    expect(result.ok).toBe(true);
+    expect(result.compacted).toBe(true);
+    const nativeDetails = compactDetails(result).codexNativeCompaction as
+      | { ok?: boolean; compacted?: boolean }
+      | undefined;
+    expect(nativeDetails?.ok).toBe(true);
+    expect(nativeDetails?.compacted).toBe(true);
   });
 
   it("records native compaction status when primary compaction has no result payload", async () => {
@@ -370,20 +369,16 @@ describe("maybeCompactCodexAppServerSession", () => {
       params: { threadId: "thread-1", turnId: "turn-1" },
     });
 
-    await expect(pendingResult).resolves.toMatchObject({
-      ok: true,
-      compacted: false,
-      reason: "below threshold",
-      result: {
-        tokensBefore: 222,
-        details: {
-          codexNativeCompaction: {
-            ok: true,
-            compacted: true,
-          },
-        },
-      },
-    });
+    const result = requireCompactResult(await pendingResult);
+    expect(result.ok).toBe(true);
+    expect(result.compacted).toBe(false);
+    expect(result.reason).toBe("below threshold");
+    expect(result.result?.tokensBefore).toBe(222);
+    const nativeDetails = compactDetails(result).codexNativeCompaction as
+      | { ok?: boolean; compacted?: boolean }
+      | undefined;
+    expect(nativeDetails?.ok).toBe(true);
+    expect(nativeDetails?.compacted).toBe(true);
   });
 
   it("reports context-engine compaction errors without skipping native compaction", async () => {
@@ -414,23 +409,21 @@ describe("maybeCompactCodexAppServerSession", () => {
       params: { threadId: "thread-1", turnId: "turn-1" },
     });
 
-    await expect(pendingResult).resolves.toMatchObject({
-      ok: false,
-      compacted: true,
-      reason: "context engine compaction failed: engine boom",
-      result: {
-        details: {
-          contextEngineCompaction: {
-            ok: false,
-            reason: "context engine compaction failed: engine boom",
-          },
-          codexNativeCompaction: {
-            ok: true,
-            compacted: true,
-          },
-        },
-      },
-    });
+    const result = requireCompactResult(await pendingResult);
+    expect(result.ok).toBe(false);
+    expect(result.compacted).toBe(true);
+    expect(result.reason).toBe("context engine compaction failed: engine boom");
+    const details = compactDetails(result);
+    const engineDetails = details.contextEngineCompaction as
+      | { ok?: boolean; reason?: string }
+      | undefined;
+    const nativeDetails = details.codexNativeCompaction as
+      | { ok?: boolean; compacted?: boolean }
+      | undefined;
+    expect(engineDetails?.ok).toBe(false);
+    expect(engineDetails?.reason).toBe("context engine compaction failed: engine boom");
+    expect(nativeDetails?.ok).toBe(true);
+    expect(nativeDetails?.compacted).toBe(true);
   });
 
   it("does not fail owning context-engine compaction when Codex native compaction cannot run", async () => {
@@ -456,20 +449,16 @@ describe("maybeCompactCodexAppServerSession", () => {
       contextEngine,
     });
 
-    expect(result).toMatchObject({
-      ok: true,
-      compacted: true,
-      result: {
-        summary: "engine summary",
-        details: {
-          codexNativeCompaction: {
-            ok: false,
-            compacted: false,
-            reason: "no codex app-server thread binding",
-          },
-        },
-      },
-    });
+    const compactResult = requireCompactResult(result);
+    expect(compactResult.ok).toBe(true);
+    expect(compactResult.compacted).toBe(true);
+    expect(compactResult.result?.summary).toBe("engine summary");
+    const nativeDetails = compactDetails(compactResult).codexNativeCompaction as
+      | { ok?: boolean; compacted?: boolean; reason?: string }
+      | undefined;
+    expect(nativeDetails?.ok).toBe(false);
+    expect(nativeDetails?.compacted).toBe(false);
+    expect(nativeDetails?.reason).toBe("no codex app-server thread binding");
   });
 });
 
