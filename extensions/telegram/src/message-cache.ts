@@ -78,6 +78,10 @@ const MESSAGE_CACHE_STORE = createPluginStateSyncKeyedStore<TelegramPersistedMes
   },
 );
 
+export function resetTelegramMessageCacheBucketsForTest(): void {
+  persistedMessageCacheBuckets.clear();
+}
+
 function telegramMessageCacheKey(params: {
   accountId: string;
   chatId: string | number;
