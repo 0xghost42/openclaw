@@ -91,7 +91,8 @@ describe("auth-profiles (chutes)", () => {
         });
 
         expect(resolved?.apiKey).toBe("at_new");
-        expect(fetchSpy).toHaveBeenCalled();
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        expect(fetchSpy).toHaveBeenCalledWith(CHUTES_TOKEN_ENDPOINT, expect.any(Object));
 
         const persisted = loadPersistedAuthProfileStore(state.agentDir());
         const persistedProfile = persisted?.profiles?.["chutes:default"];
