@@ -47,6 +47,14 @@ async function withTempHome<T>(fn: (homeDir: string) => Promise<T>): Promise<T> 
   }
 }
 
+function providerCalls(mockFn: { mock: { calls: unknown[][] } }): unknown[] {
+  return mockFn.mock.calls.map(([params]) =>
+    params && typeof params === "object" && "provider" in params
+      ? (params as { provider?: unknown }).provider
+      : undefined,
+  );
+}
+
 describe("resolveProviderAuths plugin boundary", () => {
   beforeAll(async () => {
     ({ resolveProviderAuths } = await import("./provider-usage.auth.js"));
@@ -140,11 +148,7 @@ describe("resolveProviderAuths plugin boundary", () => {
     });
 
     expect(resolveProviderUsageAuthWithPluginMock).toHaveBeenCalledTimes(1);
-    expect(resolveProviderUsageAuthWithPluginMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "anthropic",
-      }),
-    );
+    expect(providerCalls(resolveProviderUsageAuthWithPluginMock)).toEqual(["anthropic"]);
     expect(ensureAuthProfileStoreMock).not.toHaveBeenCalled();
   });
 
@@ -185,16 +189,8 @@ describe("resolveProviderAuths plugin boundary", () => {
       ]);
     });
 
-    expect(resolveAuthProfileOrderMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "minimax-portal",
-      }),
-    );
-    expect(resolveProviderUsageAuthWithPluginMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "minimax",
-      }),
-    );
+    expect(providerCalls(resolveAuthProfileOrderMock)).toEqual(["minimax", "minimax-portal"]);
+    expect(providerCalls(resolveProviderUsageAuthWithPluginMock)).toEqual(["minimax"]);
     expect(ensureAuthProfileStoreMock).not.toHaveBeenCalled();
   });
 
@@ -221,11 +217,7 @@ describe("resolveProviderAuths plugin boundary", () => {
       ]);
     });
 
-    expect(resolveProviderUsageAuthWithPluginMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "minimax",
-      }),
-    );
+    expect(providerCalls(resolveProviderUsageAuthWithPluginMock)).toEqual(["minimax"]);
     expect(ensureAuthProfileStoreMock).not.toHaveBeenCalled();
   });
 
@@ -267,10 +259,6 @@ describe("resolveProviderAuths plugin boundary", () => {
     });
 
     expect(resolveProviderUsageAuthWithPluginMock).toHaveBeenCalledTimes(1);
-    expect(resolveProviderUsageAuthWithPluginMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "anthropic",
-      }),
-    );
+    expect(providerCalls(resolveProviderUsageAuthWithPluginMock)).toEqual(["anthropic"]);
   });
 });
