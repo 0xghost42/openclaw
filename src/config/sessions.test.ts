@@ -463,7 +463,8 @@ describe("sessions", () => {
       sessionKey,
       update: async () => null,
     });
-    expect(result).toEqual(expect.objectContaining({ sessionId: "sess-1", thinkingLevel: "low" }));
+    expect(result?.sessionId).toBe("sess-1");
+    expect(result?.thinkingLevel).toBe("low");
 
     const store = readSessionEntries();
     expect(store[sessionKey]?.thinkingLevel).toBe("low");
