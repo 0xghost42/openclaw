@@ -100,7 +100,10 @@ describe("zalo outbound hosted media", () => {
     if (!id) {
       throw new Error("expected hosted Zalo media id");
     }
-    expect(id).toEqual(expect.stringMatching(/^[a-f0-9-]+$/));
+    expect(id).toHaveLength(24);
+    expect(
+      [...id].every((char) => (char >= "0" && char <= "9") || (char >= "a" && char <= "f")),
+    ).toBe(true);
 
     const dbStats = await stat(join(stateDir, "state", "openclaw.sqlite"));
     expect(dbStats.isFile()).toBe(true);
