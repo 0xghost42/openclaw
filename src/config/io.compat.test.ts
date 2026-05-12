@@ -2,8 +2,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { normalizeCompatibilityConfigValues } from "../commands/doctor/legacy-config.js";
+import { VERSION } from "../version.js";
 import { createConfigIO } from "./io.js";
 import { normalizeExecSafeBinProfilesInConfig } from "./normalize-exec-safe-bin.js";
+import type { OpenClawConfig } from "./types.openclaw.js";
 
 async function withTempHome(run: (home: string) => Promise<void>): Promise<void> {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-config-"));
@@ -102,8 +105,10 @@ describe("config io paths", () => {
       });
       io.loadConfig();
 
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringMatching(/^Config warnings:\n- /));
-      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Config warnings:\\n"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Config warnings:\n- plugins.entries.google-antigravity-auth: plugin removed: google-antigravity-auth (stale config entry ignored; remove it from plugins config)",
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith("Config warnings:\\n");
     });
   });
 
@@ -136,19 +141,11 @@ describe("config io paths", () => {
       io.loadConfig();
 
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "Your OpenClaw config was written by version 9999.1.1, but this command is running",
-        ),
-      );
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(
+        [
+          `Your OpenClaw config was written by version 9999.1.1, but this command is running ${VERSION}.`,
           "Check: `openclaw --version`, `which openclaw`, and `openclaw gateway status --deep`.",
-        ),
-      );
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "If unexpected, update PATH so `openclaw` points to the version you want",
-        ),
+          "If unexpected, update PATH so `openclaw` points to the version you want, or reinstall the Gateway service from that same OpenClaw install.",
+        ].join("\n"),
       );
     });
   });
@@ -196,5 +193,31 @@ describe("config io paths", () => {
       },
     });
     expect(cfg.agents?.list?.[0]?.tools?.exec?.safeBinTrustedDirs).toEqual(["/ops/bin"]);
+  });
+
+  it("moves WhatsApp shared access defaults into accounts.default during runtime compat", () => {
+    const migrated = normalizeCompatibilityConfigValues({
+      channels: {
+        whatsapp: {
+          enabled: true,
+          dmPolicy: "allowlist",
+          allowFrom: ["+15550001111"],
+          groupPolicy: "open",
+          groupAllowFrom: [],
+          accounts: {
+            work: {
+              enabled: true,
+              authDir: "/tmp/wa-work",
+            },
+          },
+        },
+      },
+    } as OpenClawConfig);
+    expect(migrated.config.channels?.whatsapp?.accounts?.default).toEqual({
+      dmPolicy: "allowlist",
+      allowFrom: ["+15550001111"],
+      groupPolicy: "open",
+      groupAllowFrom: [],
+    });
   });
 });
