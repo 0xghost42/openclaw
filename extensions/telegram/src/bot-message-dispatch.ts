@@ -1090,7 +1090,6 @@ export const dispatchTelegramMessage = async ({
                     );
                     const segments = split.segments;
                     const reply = resolveSendableOutboundReplyParts(effectivePayload);
-                    const _hasMedia = reply.hasMedia;
 
                     const flushBufferedFinalAnswer = async () => {
                       const buffered =

@@ -8,14 +8,6 @@ const NOSTR_PLUGIN_ID = "nostr";
 export const NOSTR_BUS_STATE_NAMESPACE = "bus-state";
 export const NOSTR_PROFILE_STATE_NAMESPACE = "profile-state";
 
-type _NostrBusStateV1 = {
-  version: 1;
-  /** Unix timestamp (seconds) of the last processed event */
-  lastProcessedAt: number | null;
-  /** Gateway startup timestamp (seconds) - events before this are old */
-  gatewayStartedAt: number | null;
-};
-
 type NostrBusState = {
   version: 2;
   /** Unix timestamp (seconds) of the last processed event */

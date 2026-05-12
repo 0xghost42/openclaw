@@ -232,10 +232,6 @@ function sortSpeechProvidersForAutoSelection(cfg?: OpenClawConfig) {
   });
 }
 
-function _resolveRegistryDefaultSpeechProviderId(cfg?: OpenClawConfig): TtsProvider {
-  return sortSpeechProvidersForAutoSelection(cfg)[0]?.id ?? "";
-}
-
 function resolveTtsRuntimeConfig(cfg: OpenClawConfig): OpenClawConfig {
   return (
     selectApplicableRuntimeConfig({

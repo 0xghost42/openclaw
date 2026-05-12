@@ -129,7 +129,7 @@ export async function serveAcpGateway(opts: AcpServerOptions = {}): Promise<void
   const stream = ndJsonStream(input, output);
   const eventLedger = createSqliteAcpEventLedger({ env: process.env });
 
-  const _connection = new AgentSideConnection((conn: AgentSideConnection) => {
+  void new AgentSideConnection((conn: AgentSideConnection) => {
     agent = new AcpGatewayAgent(conn, gateway, { ...opts, eventLedger });
     agent.start();
     return agent;
