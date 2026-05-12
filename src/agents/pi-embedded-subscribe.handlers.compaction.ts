@@ -1,14 +1,45 @@
 import { emitAgentEvent } from "../infra/agent-events.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
-import type { AgentEvent } from "./agent-core-contract.js";
 import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handlers.types.js";
 import { makeZeroUsageSnapshot } from "./usage.js";
 
-export function handleCompactionStart(ctx: EmbeddedPiSubscribeContext) {
+type CompactionReason = "manual" | "threshold" | "overflow";
+
+type CompactionStartEvent = {
+  type: "compaction_start";
+  reason?: unknown;
+};
+
+type CompactionEndEvent = {
+  type: "compaction_end";
+  reason?: unknown;
+  willRetry?: unknown;
+  result?: unknown;
+  aborted?: unknown;
+};
+
+function normalizeCompactionReason(reason: unknown): CompactionReason {
+  return reason === "manual" || reason === "threshold" || reason === "overflow"
+    ? reason
+    : "threshold";
+}
+
+function compactionLogKind(reason: CompactionReason): string {
+  return reason === "manual" ? "manual compaction" : "auto-compaction";
+}
+
+export function handleCompactionStart(ctx: EmbeddedPiSubscribeContext, evt: CompactionStartEvent) {
+  const reason = normalizeCompactionReason(evt.reason);
+  const kind = compactionLogKind(reason);
   ctx.state.compactionInFlight = true;
   ctx.state.livenessState = "paused";
   ctx.ensureCompactionPromise();
-  ctx.log.debug(`embedded run compaction start: runId=${ctx.params.runId}`);
+  ctx.log.info(`embedded run ${kind} start`, {
+    event: "embedded_run_compaction_start",
+    runId: ctx.params.runId,
+    reason,
+    consoleMessage: `embedded run ${kind} start: runId=${ctx.params.runId} reason=${reason}`,
+  });
   emitAgentEvent({
     runId: ctx.params.runId,
     stream: "compaction",
@@ -38,10 +69,9 @@ export function handleCompactionStart(ctx: EmbeddedPiSubscribeContext) {
   }
 }
 
-export function handleCompactionEnd(
-  ctx: EmbeddedPiSubscribeContext,
-  evt: AgentEvent & { willRetry?: unknown; result?: unknown; aborted?: unknown },
-) {
+export function handleCompactionEnd(ctx: EmbeddedPiSubscribeContext, evt: CompactionEndEvent) {
+  const reason = normalizeCompactionReason(evt.reason);
+  const kind = compactionLogKind(reason);
   ctx.state.compactionInFlight = false;
   const willRetry = Boolean(evt.willRetry);
   // Increment counter whenever compaction actually produced a result,
@@ -58,6 +88,15 @@ export function handleCompactionEnd(
         : undefined;
     ctx.noteCompactionTokensAfter(tokensAfter);
     const observedCompactionCount = ctx.getCompactionCount();
+    ctx.log.info(`embedded run ${kind} complete`, {
+      event: "embedded_run_compaction_end",
+      runId: ctx.params.runId,
+      reason,
+      completed: true,
+      willRetry,
+      compactionCount: observedCompactionCount,
+      consoleMessage: `embedded run ${kind} complete: runId=${ctx.params.runId} reason=${reason} compactionCount=${observedCompactionCount} willRetry=${willRetry}`,
+    });
     void reconcileSessionRowCompactionCountAfterSuccess({
       sessionKey: ctx.params.sessionKey,
       agentId: ctx.params.agentId,
@@ -76,6 +115,17 @@ export function handleCompactionEnd(
     }
     ctx.maybeResolveCompactionWait();
     clearStaleAssistantUsageOnSessionMessages(ctx);
+  }
+  if (!hasResult || wasAborted) {
+    ctx.log.info(`embedded run ${kind} incomplete`, {
+      event: "embedded_run_compaction_end",
+      runId: ctx.params.runId,
+      reason,
+      completed: false,
+      willRetry,
+      aborted: wasAborted,
+      consoleMessage: `embedded run ${kind} incomplete: runId=${ctx.params.runId} reason=${reason} aborted=${wasAborted} willRetry=${willRetry}`,
+    });
   }
   emitAgentEvent({
     runId: ctx.params.runId,
