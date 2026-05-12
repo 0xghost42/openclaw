@@ -814,6 +814,7 @@ describe("runBtwSideQuestion", () => {
 
     const result = await runMathSideQuestion();
 
+    expect(buildSessionContextMock).toHaveBeenCalledTimes(1);
     expect(buildSessionContextMock).toHaveBeenCalledWith([assistantEntry]);
     expect(result).toEqual({ text: MATH_ANSWER });
   });
@@ -841,6 +842,7 @@ describe("runBtwSideQuestion", () => {
 
     const result = await runMathSideQuestion();
 
+    expect(buildSessionContextMock).toHaveBeenCalledTimes(1);
     expect(buildSessionContextMock).toHaveBeenCalledWith([userEntry, assistantEntry]);
     expect(result).toEqual({ text: MATH_ANSWER });
   });
@@ -863,6 +865,7 @@ describe("runBtwSideQuestion", () => {
 
     const result = await runMathSideQuestion();
 
+    expect(buildSessionContextMock).toHaveBeenCalledTimes(1);
     expect(buildSessionContextMock).toHaveBeenCalledWith([userEntry, assistantEntry]);
     expect(result).toEqual({ text: MATH_ANSWER });
     expect(diagDebugMock).toHaveBeenCalledWith(
@@ -876,7 +879,7 @@ describe("runBtwSideQuestion", () => {
     const result = await runMathSideQuestion();
 
     expect(result).toEqual({ text: MATH_ANSWER });
-    expect(buildSessionContextMock).toHaveBeenCalled();
+    expect(buildSessionContextMock).toHaveBeenCalledTimes(1);
   });
 
   it("does not log transcript persistence warnings because BTW no longer writes to disk", async () => {
