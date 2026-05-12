@@ -41,7 +41,6 @@ import {
 } from "openclaw/plugin-sdk/agent-harness-runtime";
 import { markAuthProfileBlockedUntil, resolveAgentDir } from "openclaw/plugin-sdk/agent-runtime";
 import { emitTrustedDiagnosticEvent } from "openclaw/plugin-sdk/diagnostic-runtime";
-import { pathExists } from "openclaw/plugin-sdk/security-runtime";
 import {
   buildCodexAppInventoryCacheKey,
   defaultCodexAppInventoryCache,
@@ -508,7 +507,7 @@ export async function runCodexAppServerAttempt(
   const agentDir = params.agentDir ?? resolveAgentDir(params.config ?? {}, sessionAgentId);
   const startupBinding = await readCodexAppServerBinding({
     sessionKey: sandboxSessionKey,
-    sessionFile: params.sessionFile,
+    sessionId: params.sessionId,
   });
   const startupAuthProfileCandidate =
     params.runtimePlan?.auth.forwardedAuthProfileId ??
@@ -571,14 +570,13 @@ export async function runCodexAppServerAttempt(
       runId: params.runId,
     },
   });
-  const hadSessionFile = hasSqliteSessionTranscriptEvents({
+  const hadTranscript = hasSqliteSessionTranscriptEvents({
     agentId: sessionAgentId,
     sessionId: params.sessionId,
   });
   let historyMessages =
     (await readMirroredSessionHistoryMessages({
       agentId: sessionAgentId,
-      sessionFile: params.sessionFile,
       sessionId: params.sessionId,
     })) ?? [];
   const hookContext = {
@@ -593,11 +591,11 @@ export async function runCodexAppServerAttempt(
   };
   if (activeContextEngine) {
     await bootstrapHarnessContextEngine({
-      hadSessionFile,
+      hadTranscript,
       contextEngine: activeContextEngine,
       sessionId: params.sessionId,
       sessionKey: sandboxSessionKey,
-      sessionFile: params.sessionFile,
+      transcriptScope: { agentId: sessionAgentId, sessionId: params.sessionId },
       runtimeContext: buildHarnessContextEngineRuntimeContext({
         attempt: runtimeParams,
         workspaceDir: effectiveWorkspace,
@@ -611,7 +609,6 @@ export async function runCodexAppServerAttempt(
     historyMessages =
       (await readMirroredSessionHistoryMessages({
         agentId: sessionAgentId,
-        sessionFile: params.sessionFile,
         sessionId: params.sessionId,
       })) ?? historyMessages;
   }
@@ -885,7 +882,7 @@ export async function runCodexAppServerAttempt(
     throw error;
   }
   trajectoryRecorder?.recordEvent("session.started", {
-    sessionFile: params.sessionFile,
+    sessionId: params.sessionId,
     threadId: thread.threadId,
     authProfileId: startupAuthProfileId,
     workspaceDir: effectiveWorkspace,
@@ -1191,7 +1188,10 @@ export async function runCodexAppServerAttempt(
     const isTurnCompletion = notification.method === "turn/completed" && isCurrentTurnNotification;
     const isTurnAbortMarker =
       isCurrentTurnNotification &&
-      isCodexTurnAbortMarkerNotification(notification, { currentPromptText: promptBuild.prompt });
+      isCodexTurnAbortMarkerNotification(notification, {
+        currentPromptText: promptBuild.prompt,
+        rawPromptText: params.prompt,
+      });
     const isTurnTerminal = isTurnCompletion || isTurnAbortMarker;
     try {
       await projector.handleNotification(notification);
@@ -1635,7 +1635,6 @@ export async function runCodexAppServerAttempt(
       const finalMessages =
         (await readMirroredSessionHistoryMessages({
           agentId: sessionAgentId,
-          sessionFile: params.sessionFile,
           sessionId: params.sessionId,
         })) ?? historyMessages.concat(result.messagesSnapshot);
       await finalizeHarnessContextEngineTurn({
@@ -1645,7 +1644,7 @@ export async function runCodexAppServerAttempt(
         yieldAborted: Boolean(result.yieldDetected),
         sessionIdUsed: params.sessionId,
         sessionKey: sandboxSessionKey,
-        sessionFile: params.sessionFile,
+        transcriptScope: { agentId: sessionAgentId, sessionId: params.sessionId },
         messagesSnapshot: finalMessages,
         prePromptMessageCount,
         tokenBudget: params.contextTokenBudget,
@@ -2577,7 +2576,7 @@ const CODEX_INTERRUPTED_DEVELOPER_GUIDANCE =
 
 function isCodexTurnAbortMarkerNotification(
   notification: CodexServerNotification,
-  options: { currentPromptText?: string } = {},
+  options: { currentPromptText?: string; rawPromptText?: string } = {},
 ): boolean {
   if (notification.method !== "rawResponseItem/completed" || !isJsonObject(notification.params)) {
     return false;
@@ -2588,7 +2587,10 @@ function isCodexTurnAbortMarkerNotification(
     return false;
   }
   const text = extractRawResponseItemText(item).trim();
-  if (role === "user" && text === options.currentPromptText?.trim()) {
+  if (
+    role === "user" &&
+    (text === options.currentPromptText?.trim() || text === options.rawPromptText?.trim())
+  ) {
     return false;
   }
   const markerBody = readCodexTurnAbortMarkerBody(text);
@@ -2637,13 +2639,12 @@ function readString(record: JsonObject, key: string): string | undefined {
 
 async function readMirroredSessionHistoryMessages(scope: {
   agentId: string;
-  sessionFile: string;
   sessionId: string;
 }): Promise<AgentMessage[] | undefined> {
   const messages = await readCodexMirroredSessionHistoryMessages(scope);
   if (!messages) {
     embeddedAgentLog.warn("failed to read mirrored session history for codex harness hooks", {
-      sessionFile: scope.sessionFile,
+      sessionId: scope.sessionId,
     });
   }
   return messages;
@@ -2903,9 +2904,8 @@ async function mirrorTranscriptBestEffort(params: {
 }): Promise<void> {
   try {
     await mirrorCodexAppServerTranscript({
-      sessionFile: params.params.sessionFile,
       sessionId: params.params.sessionId,
-      agentId: params.agentId,
+      agentId: params.agentId ?? "main",
       sessionKey: params.sessionKey,
       messages: params.result.messagesSnapshot,
       // Scope is thread-stable. Each entry in `messagesSnapshot` is tagged
