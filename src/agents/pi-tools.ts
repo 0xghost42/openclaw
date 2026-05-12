@@ -64,6 +64,7 @@ import {
 import { cleanToolSchemaForGemini, normalizeToolParameters } from "./pi-tools.schema.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
+import { SANDBOX_AGENT_WORKSPACE_MOUNT } from "./sandbox/constants.js";
 import {
   isSubagentEnvelopeSession,
   resolveSubagentCapabilityStore,
@@ -104,6 +105,29 @@ function isOpenAIProvider(provider?: string) {
 }
 
 const MEMORY_FLUSH_ALLOWED_TOOL_NAMES = new Set(["read", "write"]);
+
+type GuardContainerMount = {
+  containerRoot: string;
+  hostRoot: string;
+};
+
+function readOnlyAgentWorkspaceMount(
+  sandbox: SandboxContext | null | undefined,
+): GuardContainerMount[] | undefined {
+  if (
+    !sandbox ||
+    sandbox.workspaceAccess !== "ro" ||
+    sandbox.agentWorkspaceDir === sandbox.workspaceDir
+  ) {
+    return undefined;
+  }
+  return [
+    {
+      containerRoot: SANDBOX_AGENT_WORKSPACE_MOUNT,
+      hostRoot: sandbox.agentWorkspaceDir,
+    },
+  ];
+}
 
 type BashToolsModule = typeof import("./bash-tools.js");
 
@@ -709,6 +733,7 @@ export function createOpenClawCodingTools(options?: {
             return [
               workspaceOnly
                 ? wrapToolWorkspaceRootGuardWithOptions(sandboxed, sandboxRoot, {
+                    additionalContainerMounts: readOnlyAgentWorkspaceMount(sandbox),
                     containerWorkdir: sandbox.containerWorkdir,
                   })
                 : sandboxed,
