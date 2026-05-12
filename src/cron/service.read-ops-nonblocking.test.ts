@@ -55,6 +55,18 @@ function createDeferredIsolatedRun() {
   };
 }
 
+function expectCronStatus(
+  status: Awaited<ReturnType<CronService["status"]>>,
+  params: { storeKey: string; jobs: number },
+) {
+  expect(status.enabled).toBe(true);
+  expect(status.storeKey).toBe(params.storeKey);
+  expect(status.jobs).toBe(params.jobs);
+  if (status.nextWakeAtMs !== null) {
+    expect(status.nextWakeAtMs).toBeTypeOf("number");
+  }
+}
+
 describe("CronService read ops while job is running", () => {
   it("keeps list and status responsive during manual cron.run execution", async () => {
     const store = await makeStoreKey();
@@ -93,9 +105,10 @@ describe("CronService read ops while job is running", () => {
       await expect(
         withTimeout(cron.list({ includeDisabled: true }), 300, "cron.list during cron.run"),
       ).resolves.toHaveLength(1);
-      await expect(withTimeout(cron.status(), 300, "cron.status during cron.run")).resolves.toEqual(
-        expect.objectContaining({ enabled: true, storeKey: store.storeKey }),
-      );
+      expectCronStatus(await withTimeout(cron.status(), 300, "cron.status during cron.run"), {
+        storeKey: store.storeKey,
+        jobs: 1,
+      });
 
       isolatedRun.completeRun({ status: "ok", summary: "manual done" });
       await expect(runPromise).resolves.toEqual({ ok: true, ran: true });
@@ -153,9 +166,10 @@ describe("CronService read ops while job is running", () => {
       await expect(
         withTimeout(cron.list({ includeDisabled: true }), 300, "cron.list during startup"),
       ).resolves.toHaveLength(1);
-      await expect(withTimeout(cron.status(), 300, "cron.status during startup")).resolves.toEqual(
-        expect.objectContaining({ enabled: true, storeKey: store.storeKey }),
-      );
+      expectCronStatus(await withTimeout(cron.status(), 300, "cron.status during startup"), {
+        storeKey: store.storeKey,
+        jobs: 1,
+      });
 
       const jobs = await cron.list({ includeDisabled: true });
       expect(jobs[0]?.state.lastStatus).toBeUndefined();
