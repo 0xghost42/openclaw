@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { redactToolPayloadText } from "../logging/redact.js";
+import { redactSecrets, redactToolPayloadText } from "../logging/redact.js";
 import { createCorePluginStateSyncKeyedStore } from "../plugin-state/plugin-state-store.js";
 import { resolveStateDir } from "./paths.js";
 
@@ -416,10 +416,10 @@ type ConfigAuditAppendParams = ConfigAuditAppendContext &
 
 function resolveConfigAuditAppendRecord(params: ConfigAuditAppendParams): ConfigAuditRecord {
   if ("record" in params) {
-    return params.record;
+    return redactSecrets(params.record);
   }
   const { fs: _fs, env: _env, homedir: _homedir, ...record } = params;
-  return record as ConfigAuditRecord;
+  return redactSecrets(record as ConfigAuditRecord);
 }
 
 function resolveConfigAuditStoreEnv(params: {
