@@ -30,16 +30,7 @@ describe("push APNs registration store", () => {
     });
 
     const loaded = await loadApnsRegistration("ios-node-1", baseDir);
-    expect(loaded).toMatchObject({
-      nodeId: "ios-node-1",
-      transport: "direct",
-      topic: "ai.openclaw.ios",
-      environment: "sandbox",
-      updatedAtMs: saved.updatedAtMs,
-    });
-    expect(loaded && loaded.transport === "direct" ? loaded.token : null).toBe(
-      "abcd1234abcd1234abcd1234abcd1234",
-    );
+    expect(loaded).toEqual(saved);
   });
 
   it("stores relay-backed registrations without a raw token", async () => {
@@ -59,17 +50,7 @@ describe("push APNs registration store", () => {
 
     const loaded = await loadApnsRegistration("ios-node-relay", baseDir);
     expect(saved.transport).toBe("relay");
-    expect(loaded).toMatchObject({
-      nodeId: "ios-node-relay",
-      transport: "relay",
-      relayHandle: "relay-handle-123",
-      sendGrant: "send-grant-123",
-      installationId: "install-123",
-      topic: "ai.openclaw.ios",
-      environment: "production",
-      distribution: "official",
-      tokenDebugSuffix: "abcd1234",
-    });
+    expect(loaded).toEqual(saved);
     expect(loaded && "token" in loaded).toBe(false);
   });
 
