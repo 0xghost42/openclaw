@@ -75,11 +75,9 @@ describe("cron service store seam coverage", () => {
     if (job.payload.kind === "agentTurn") {
       expect(job.payload.message).toBe("ping");
     }
-    expect(job.delivery).toMatchObject({
-      mode: "announce",
-      channel: "telegram",
-      to: "123",
-    });
+    expect(job.delivery?.mode).toBe("announce");
+    expect(job.delivery?.channel).toBe("telegram");
+    expect(job.delivery?.to).toBe("123");
     expect(job?.state.nextRunAtMs).toBe(STORE_TEST_NOW);
 
     await persist(state);
