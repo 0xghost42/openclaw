@@ -273,9 +273,7 @@ describe("memory cli", () => {
 
     params.beforeExpect?.();
     expect(close).toHaveBeenCalled();
-    expect(error).toHaveBeenCalledWith(
-      expect.stringContaining("Memory manager close failed: close boom"),
-    );
+    expect(error).toHaveBeenCalledWith("Memory manager close failed: close boom");
     expect(process.exitCode).toBeUndefined();
   }
 
@@ -838,7 +836,7 @@ describe("memory cli", () => {
 
       expectCliSync(sync);
       expect(error).toHaveBeenCalledWith(
-        expect.stringContaining("Memory index failed (main): QMD index file is empty"),
+        `Memory index failed (main): QMD index file is empty: ${dbPath}`,
       );
       expect(close).toHaveBeenCalled();
       expect(process.exitCode).toBe(1);
