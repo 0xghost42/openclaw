@@ -25,6 +25,15 @@ const { backupCreateCommand } = await import("./backup.js");
 describe("backup commands", () => {
   let tempHome: TempHomeEnv;
 
+  function requireFirstMockArg<T>(mock: { mock: { calls: T[][] } }, label: string): T {
+    const call = mock.mock.calls.at(0);
+    if (!call) {
+      throw new Error(`expected ${label} call`);
+    }
+    const [arg] = call;
+    return arg;
+  }
+
   async function mockWorkspaceBackupPlan(stateDir: string, workspaceDir: string, nowMs: number) {
     vi.spyOn(backupShared, "resolveBackupPlanFromDisk").mockResolvedValue(
       await resolveBackupPlanFromPaths({
