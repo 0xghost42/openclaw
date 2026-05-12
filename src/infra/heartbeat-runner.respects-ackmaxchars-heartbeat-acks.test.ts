@@ -77,6 +77,53 @@ describe("runHeartbeatOnce ack handling", () => {
     });
   }
 
+  function expectTelegramMessageSend(
+    send: ReturnType<typeof vi.fn>,
+    params: { to: string; text: string; cfg: OpenClawConfig; accountId?: string },
+  ) {
+    expect(send.mock.calls).toEqual([
+      [
+        params.to,
+        params.text,
+        {
+          verbose: false,
+          cfg: params.cfg,
+          accountId: params.accountId ?? "default",
+        },
+      ],
+    ]);
+  }
+
+  function expectWhatsAppMessageSend(
+    send: ReturnType<typeof vi.fn>,
+    params: { to: string; text: string; cfg: OpenClawConfig; accountId?: string },
+  ) {
+    expect(send.mock.calls).toEqual([
+      [
+        params.to,
+        params.text,
+        {
+          verbose: false,
+          cfg: params.cfg,
+          accountId: params.accountId ?? "default",
+          audioAsVoice: undefined,
+          forceDocument: undefined,
+          formatting: undefined,
+          gatewayClientScopes: undefined,
+          gifPlayback: undefined,
+          identity: undefined,
+          kind: "text",
+          mediaAccess: {},
+          mediaLocalRoots: undefined,
+          mediaReadFile: undefined,
+          replyToIdSource: undefined,
+          replyToMode: undefined,
+          silent: undefined,
+        },
+      ],
+    ]);
+  }
+
   async function runTelegramHeartbeatWithDefaults(params: {
     tmpDir: string;
     agentId: string;
@@ -114,7 +161,7 @@ describe("runHeartbeatOnce ack handling", () => {
         getReplyFromConfig: params.replySpy,
       },
     });
-    return sendTelegram;
+    return { sendTelegram, cfg };
   }
 
   function createWhatsAppHeartbeatConfig(params: {
@@ -206,8 +253,11 @@ describe("runHeartbeatOnce ack handling", () => {
         },
       });
 
-      expect(sendWhatsApp).toHaveBeenCalledTimes(1);
-      expect(sendWhatsApp).toHaveBeenCalledWith(WHATSAPP_GROUP, "HEARTBEAT_OK", expect.any(Object));
+      expectWhatsAppMessageSend(sendWhatsApp, {
+        to: WHATSAPP_GROUP,
+        text: "HEARTBEAT_OK",
+        cfg,
+      });
     });
   });
 
@@ -232,7 +282,7 @@ describe("runHeartbeatOnce ack handling", () => {
     },
   ])("$title", async ({ replyText, messages, expectedCalls, expectedText }) => {
     await withTempTelegramHeartbeatSandbox(async ({ tmpDir, agentId, replySpy }) => {
-      const sendTelegram = await runTelegramHeartbeatWithDefaults({
+      const { sendTelegram, cfg } = await runTelegramHeartbeatWithDefaults({
         tmpDir,
         agentId,
         replySpy,
@@ -242,7 +292,11 @@ describe("runHeartbeatOnce ack handling", () => {
 
       expect(sendTelegram).toHaveBeenCalledTimes(expectedCalls);
       if (expectedText) {
-        expect(sendTelegram).toHaveBeenCalledWith(TELEGRAM_GROUP, expectedText, expect.any(Object));
+        expectTelegramMessageSend(sendTelegram, {
+          to: TELEGRAM_GROUP,
+          text: expectedText,
+          cfg,
+        });
       }
     });
   });
@@ -376,7 +430,7 @@ describe("runHeartbeatOnce ack handling", () => {
   async function expectTelegramHeartbeatAccountId(params: {
     heartbeat: Record<string, unknown>;
     telegram: Record<string, unknown>;
-    expectedAccountId: string | undefined;
+    expectedAccountId: string;
   }): Promise<void> {
     await withTempTelegramHeartbeatSandbox(async ({ tmpDir, agentId, replySpy }) => {
       const cfg = createHeartbeatConfig({
@@ -412,20 +466,20 @@ describe("runHeartbeatOnce ack handling", () => {
 
   it.each([
     {
-      title: "passes through accountId for telegram heartbeats",
+      title: "passes through the default accountId for telegram heartbeats",
       heartbeat: { every: "5m", target: "telegram" },
       telegram: { botToken: "test-bot-token-123" },
-      expectedAccountId: undefined,
+      expectedAccountId: "default",
     },
     {
-      title: "does not pre-resolve telegram accountId (allows config-only account tokens)",
+      title: "uses the default accountId for config-only account tokens",
       heartbeat: { every: "5m", target: "telegram" },
       telegram: {
         accounts: {
           work: { botToken: "test-bot-token-123" },
         },
       },
-      expectedAccountId: undefined,
+      expectedAccountId: "default",
     },
     {
       title: "uses explicit heartbeat accountId for telegram delivery",
