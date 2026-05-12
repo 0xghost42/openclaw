@@ -51,6 +51,7 @@ const BASE_METHODS = [
   "plugin.approval.waitDecision",
   "plugin.approval.resolve",
   "plugins.uiDescriptors",
+  "plugins.sessionAction",
   "wizard.start",
   "wizard.next",
   "wizard.cancel",
