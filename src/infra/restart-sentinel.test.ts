@@ -250,10 +250,11 @@ describe("restart sentinel", () => {
 
   it("writes the running version back to update sentinels on startup", async () => {
     await withRestartSentinelStateDir(async () => {
+      const ts = Date.now();
       await writeRestartSentinel({
         kind: "update",
         status: "ok",
-        ts: Date.now(),
+        ts,
         stats: {
           after: { version: "expected-version" },
         },
@@ -261,9 +262,12 @@ describe("restart sentinel", () => {
 
       await finalizeUpdateRestartSentinelRunningVersion("actual-version");
 
-      await expect(readRestartSentinel()).resolves.toMatchObject({
+      await expect(readRestartSentinel()).resolves.toEqual({
+        version: 1,
         payload: {
           kind: "update",
+          status: "ok",
+          ts,
           stats: {
             after: {
               version: "actual-version",
@@ -276,19 +280,22 @@ describe("restart sentinel", () => {
 
   it("marks update restart failures with a stable reason", async () => {
     await withRestartSentinelStateDir(async () => {
+      const ts = Date.now();
       await writeRestartSentinel({
         kind: "update",
         status: "ok",
-        ts: Date.now(),
+        ts,
         stats: {},
       });
 
       await markUpdateRestartSentinelFailure("restart-unhealthy");
 
-      await expect(readRestartSentinel()).resolves.toMatchObject({
+      await expect(readRestartSentinel()).resolves.toEqual({
+        version: 1,
         payload: {
           kind: "update",
           status: "error",
+          ts,
           stats: {
             reason: "restart-unhealthy",
           },
