@@ -41,6 +41,11 @@ import {
   normalizeAgentId,
   parseAgentSessionKey,
 } from "../routing/session-key.js";
+import {
+  forgetActiveSessionForShutdown,
+  listActiveSessionsForShutdown,
+  noteActiveSessionForShutdown,
+} from "./active-sessions-shutdown-tracker.js";
 import { ErrorCodes, errorShape } from "./protocol/index.js";
 import {
   loadSessionEntry,
@@ -69,13 +74,26 @@ export function emitGatewaySessionEndPluginHook(params: {
   sessionKey: string;
   sessionId?: string;
   agentId?: string;
-  reason: "new" | "reset" | "idle" | "daily" | "compaction" | "deleted" | "unknown";
+  reason:
+    | "new"
+    | "reset"
+    | "idle"
+    | "daily"
+    | "compaction"
+    | "deleted"
+    | "shutdown"
+    | "restart"
+    | "unknown";
   nextSessionId?: string;
   nextSessionKey?: string;
 }): void {
   if (!params.sessionId) {
     return;
   }
+  // Drop this session from the shutdown finalizer's tracked set unconditionally
+  // -- even when no plugin hooks are registered for `session_end`, the session
+  // is being closed here and must not be re-finalized by a later shutdown drain.
+  forgetActiveSessionForShutdown(params.sessionId);
   const hookRunner = getGlobalHookRunner();
   if (!hookRunner?.hasHooks("session_end")) {
     return;
@@ -98,10 +116,23 @@ export function emitGatewaySessionStartPluginHook(params: {
   sessionKey: string;
   sessionId?: string;
   resumedFrom?: string;
+  agentId?: string;
 }): void {
   if (!params.sessionId) {
     return;
   }
+  // Track the session for the shutdown finalizer even when no plugin hooks are
+  // registered locally, so a later restart still emits a typed `session_end`
+  // for sessions that opened while a `session_end` plugin was attached. The
+  // tracker is keyed by `sessionId`, so a session that is subsequently closed
+  // via reset / delete / compaction is forgotten before the shutdown drain
+  // ever runs (see #57790).
+  noteActiveSessionForShutdown({
+    cfg: params.cfg,
+    sessionKey: params.sessionKey,
+    sessionId: params.sessionId,
+    agentId: params.agentId,
+  });
   const hookRunner = getGlobalHookRunner();
   if (!hookRunner?.hasHooks("session_start")) {
     return;
@@ -115,6 +146,69 @@ export function emitGatewaySessionStartPluginHook(params: {
   void hookRunner.runSessionStart(payload.event, payload.context).catch((err) => {
     logVerbose(`session_start hook failed: ${String(err)}`);
   });
+}
+
+const SHUTDOWN_DRAIN_DEFAULT_TOTAL_TIMEOUT_MS = 2_000;
+
+export type DrainActiveSessionsForShutdownResult = {
+  emittedSessionIds: string[];
+  timedOut: boolean;
+};
+
+/**
+ * Emit a typed `session_end` for every session that received `session_start`
+ * but did not yet receive a paired `session_end`. The bounded total timeout
+ * mirrors the gateway lifecycle hook timeout so a slow plugin cannot block
+ * SIGTERM/SIGINT past the runtime's overall shutdown grace window.
+ *
+ * Sessions that have already been finalized through replace / reset / delete /
+ * compaction are forgotten from the tracker by `emitGatewaySessionEndPluginHook`
+ * before this drain runs, so they will not be double-fired here.
+ */
+export async function drainActiveSessionsForShutdown(params: {
+  reason: "shutdown" | "restart";
+  totalTimeoutMs?: number;
+}): Promise<DrainActiveSessionsForShutdownResult> {
+  const tracked = listActiveSessionsForShutdown();
+  if (tracked.length === 0) {
+    return { emittedSessionIds: [], timedOut: false };
+  }
+  const totalTimeoutMs = Math.max(
+    100,
+    Math.floor(params.totalTimeoutMs ?? SHUTDOWN_DRAIN_DEFAULT_TOTAL_TIMEOUT_MS),
+  );
+  const emittedSessionIds: string[] = [];
+  const drain = (async () => {
+    for (const entry of tracked) {
+      emitGatewaySessionEndPluginHook({
+        cfg: entry.cfg,
+        sessionKey: entry.sessionKey,
+        sessionId: entry.sessionId,
+        agentId: entry.agentId,
+        reason: params.reason,
+      });
+      emittedSessionIds.push(entry.sessionId);
+    }
+  })();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), totalTimeoutMs);
+    timer.unref?.();
+  });
+  try {
+    const result = await Promise.race([drain.then(() => "ok" as const), timeout]);
+    if (result === "timeout") {
+      logVerbose(
+        `shutdown session-end drain timed out after ${totalTimeoutMs}ms with ${tracked.length - emittedSessionIds.length} sessions remaining`,
+      );
+      return { emittedSessionIds, timedOut: true };
+    }
+    return { emittedSessionIds, timedOut: false };
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 export async function emitSessionUnboundLifecycleEvent(params: {
@@ -653,6 +747,7 @@ export async function performGatewaySessionReset(params: {
     sessionKey: target.canonicalKey ?? params.key,
     sessionId: next.sessionId,
     resumedFrom: oldSessionId,
+    agentId: target.agentId,
   });
   if (deleteOldTranscript && oldSessionId) {
     deleteSqliteSessionTranscript({

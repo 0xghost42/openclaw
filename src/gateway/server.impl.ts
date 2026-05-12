@@ -931,7 +931,8 @@ export async function startGatewayServer(
   const createCloseHandler =
     () => async (opts?: { reason?: string; restartExpectedMs?: number | null }) => {
       const channelIds = listLoadedChannelPlugins().map((plugin) => plugin.id as ChannelId);
-      const { createGatewayCloseHandler } = await loadGatewayCloseModule();
+      const { createGatewayCloseHandler, drainActiveSessionsForShutdown } =
+        await loadGatewayCloseModule();
       await createGatewayCloseHandler({
         bonjourStop: runtimeState.bonjourStop,
         tailscaleCleanup: runtimeState.tailscaleCleanup,
@@ -959,6 +960,7 @@ export async function startGatewayServer(
         wss,
         httpServer,
         httpServers,
+        drainActiveSessionsForShutdown,
       })(opts);
     };
   let clearFallbackGatewayContextForServer = () => {};

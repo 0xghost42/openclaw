@@ -1249,6 +1249,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
         sessionKey: target.canonicalKey,
         sessionId: createdEntry.sessionId,
         resumedFrom: parentEntry?.sessionId,
+        agentId: target.agentId,
       });
     }
   },
