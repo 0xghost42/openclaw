@@ -74,10 +74,11 @@ describe("SqliteBackedMatrixSyncStore", () => {
 
   it("persists sync data so restart resumes from the saved cursor", async () => {
     const storageRoot = createStorageRoot();
+    const syncResponse = createSyncResponse("s123");
 
     const firstStore = new SqliteBackedMatrixSyncStore(storageRoot);
     expect(firstStore.hasSavedSync()).toBe(false);
-    await firstStore.setSyncData(createSyncResponse("s123"));
+    await firstStore.setSyncData(syncResponse);
     await firstStore.flush();
 
     const secondStore = new SqliteBackedMatrixSyncStore(storageRoot);
@@ -85,22 +86,40 @@ describe("SqliteBackedMatrixSyncStore", () => {
     await expect(secondStore.getSavedSyncToken()).resolves.toBe("s123");
 
     const savedSync = await secondStore.getSavedSync();
-    expect(savedSync?.nextBatch).toBe("s123");
-    expect(savedSync?.accountData).toEqual([
-      {
-        content: { theme: "dark" },
-        type: "com.openclaw.test",
-      },
-    ]);
-    expect(savedSync?.roomsData.join?.["!room:example.org"]).toMatchObject({
-      timeline: {
-        events: [
-          {
-            event_id: "$message",
-            sender: "@user:example.org",
-            type: "m.room.message",
+    expect(savedSync).toEqual({
+      nextBatch: "s123",
+      accountData: syncResponse.account_data.events,
+      roomsData: {
+        join: {
+          "!room:example.org": {
+            summary: {
+              "m.heroes": [],
+            },
+            state: { events: [] },
+            "org.matrix.msc4222.state_after": { events: [] },
+            timeline: {
+              events: [
+                {
+                  content: {
+                    body: "hello",
+                    msgtype: "m.text",
+                  },
+                  event_id: "$message",
+                  origin_server_ts: 1,
+                  sender: "@user:example.org",
+                  type: "m.room.message",
+                },
+              ],
+              prev_batch: "t0",
+            },
+            ephemeral: { events: [] },
+            account_data: { events: [] },
+            unread_notifications: {},
           },
-        ],
+        },
+        invite: {},
+        leave: {},
+        knock: {},
       },
     });
     expect(secondStore.hasSavedSyncFromCleanShutdown()).toBe(false);
@@ -222,14 +241,19 @@ describe("SqliteBackedMatrixSyncStore", () => {
       }),
     );
 
-    expect(parsed).toMatchObject({
+    expect(parsed).toEqual({
+      version: 1,
       savedSync: {
         nextBatch: "legacy-token",
         roomsData: {
           join: {},
+          invite: {},
+          leave: {},
+          knock: {},
         },
         accountData: [],
       },
+      cleanShutdown: false,
     });
   });
 });
