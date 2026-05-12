@@ -291,7 +291,6 @@ function requireProvider(providers: unknown, provider: string) {
   const entry = requireArray(providers, "auth providers").find(
     (candidate) => requireRecord(candidate, "auth provider").provider === provider,
   );
-  expect(entry).toBeDefined();
   if (!entry) {
     throw new Error(`missing provider ${provider}`);
   }
@@ -302,7 +301,6 @@ function requireProfile(profiles: unknown, profileId: string) {
   const entry = requireArray(profiles, "auth profiles").find(
     (candidate) => requireRecord(candidate, "auth profile").profileId === profileId,
   );
-  expect(entry).toBeDefined();
   if (!entry) {
     throw new Error(`missing profile ${profileId}`);
   }
