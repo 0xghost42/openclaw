@@ -7,7 +7,7 @@ import {
 } from "openclaw/plugin-sdk/command-auth-native";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-contracts";
 import type { ResolvedAgentRoute } from "openclaw/plugin-sdk/routing";
-import { getSessionEntry, listSessionEntries } from "openclaw/plugin-sdk/session-store-runtime";
+import { listSessionEntries } from "openclaw/plugin-sdk/session-store-runtime";
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalString,
@@ -89,12 +89,6 @@ function buildDiscordModelPickerCurrentModel(
   defaultModel: string,
 ): string {
   return `${defaultProvider}/${defaultModel}`;
-}
-
-function resolveConfiguredAgentRuntimeId(value: {
-  agentRuntime?: { id?: unknown };
-}): string | undefined {
-  return normalizeOptionalString(value.agentRuntime?.id);
 }
 
 export function buildDiscordModelPickerAllowedModelRefs(
@@ -262,35 +256,6 @@ export function resolveDiscordModelPickerCurrentModel(params: {
   }
 }
 
-export function resolveDiscordModelPickerCurrentRuntime(params: {
-  cfg: OpenClawConfig;
-  route: ResolvedAgentRoute;
-}): string {
-  try {
-    const sessionRuntime = normalizeOptionalString(
-      getSessionEntry({
-        agentId: params.route.agentId,
-        sessionKey: params.route.sessionKey,
-      })?.agentRuntimeOverride,
-    );
-    if (sessionRuntime) {
-      return sessionRuntime;
-    }
-  } catch {
-    // Fall through to configured defaults when session rows are unavailable.
-  }
-
-  const agentRuntime = resolveConfiguredAgentRuntimeId(
-    params.cfg.agents?.list?.find(
-      (entry) => normalizeOptionalString(entry.id) === params.route.agentId,
-    ) ?? {},
-  );
-  if (agentRuntime) {
-    return agentRuntime;
-  }
-  return resolveConfiguredAgentRuntimeId(params.cfg.agents?.defaults ?? {}) ?? "auto";
-}
-
 export async function replyWithDiscordModelPickerProviders(params: {
   interaction: CommandInteraction | ButtonInteraction | StringSelectMenuInteraction;
   cfg: OpenClawConfig;
@@ -312,10 +277,6 @@ export async function replyWithDiscordModelPickerProviders(params: {
     cfg: params.cfg,
     route,
     data,
-  });
-  const currentRuntime = resolveDiscordModelPickerCurrentRuntime({
-    cfg: params.cfg,
-    route,
   });
   const quickModels = await readDiscordModelPickerRecentModels({
     scope: resolveDiscordModelPickerPreferenceScope({
@@ -340,7 +301,6 @@ export async function replyWithDiscordModelPickerProviders(params: {
     page: 1,
     providerPage: 1,
     currentModel,
-    currentRuntime,
     quickModels,
   });
   const payload = {
