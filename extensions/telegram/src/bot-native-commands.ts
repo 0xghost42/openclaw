@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Bot, Context } from "grammy";
 import {
   buildConfiguredModelCatalog,
+  loadModelCatalog,
   resolveAgentConfig,
   resolveDefaultModelForAgent,
   resolveThinkingDefault,
@@ -250,13 +251,49 @@ function resolveTelegramCommandMenuModelContext(params: {
   }
 }
 
-function resolveTelegramThinkMenuCurrentLevel(params: {
+async function resolveTelegramDefaultThinkingLevel(params: {
+  cfg: OpenClawConfig;
+  provider: string;
+  model: string;
+}): Promise<string> {
+  const configuredCatalog = buildConfiguredModelCatalog({ cfg: params.cfg });
+  const configuredSelectedEntry = configuredCatalog.find(
+    (entry) => entry.provider === params.provider && entry.id === params.model,
+  );
+  const shouldHydrateRuntimeCatalog =
+    configuredCatalog.length === 0 ||
+    !configuredSelectedEntry ||
+    configuredSelectedEntry.reasoning === undefined;
+  let runtimeCatalog: Awaited<ReturnType<typeof loadModelCatalog>> | undefined;
+  if (shouldHydrateRuntimeCatalog) {
+    try {
+      runtimeCatalog = await loadModelCatalog({ config: params.cfg });
+    } catch {
+      runtimeCatalog = undefined;
+    }
+  }
+  const runtimeSelectedEntry = runtimeCatalog?.find(
+    (entry) => entry.provider === params.provider && entry.id === params.model,
+  );
+  const catalog =
+    runtimeSelectedEntry || configuredCatalog.length === 0
+      ? (runtimeCatalog ?? configuredCatalog)
+      : configuredCatalog;
+  return resolveThinkingDefault({
+    cfg: params.cfg,
+    provider: params.provider,
+    model: params.model,
+    catalog,
+  });
+}
+
+async function resolveTelegramThinkMenuCurrentLevel(params: {
   cfg: OpenClawConfig;
   agentId: string;
   provider?: string;
   model?: string;
   thinkingLevel?: string;
-}): string {
+}): Promise<string> {
   const explicit = normalizeOptionalString(params.thinkingLevel);
   if (explicit) {
     return explicit;
@@ -271,11 +308,10 @@ function resolveTelegramThinkMenuCurrentLevel(params: {
     cfg: params.cfg,
     agentId: params.agentId,
   });
-  return resolveThinkingDefault({
+  return await resolveTelegramDefaultThinkingLevel({
     cfg: params.cfg,
     provider: params.provider ?? defaultModel.provider,
     model: params.model ?? defaultModel.model,
-    catalog: buildConfiguredModelCatalog({ cfg: params.cfg }),
   });
 }
 
@@ -1044,7 +1080,7 @@ export const registerTelegramNativeCommands = ({
             menu,
             currentThinkingLevel:
               commandDefinition.key === "think"
-                ? resolveTelegramThinkMenuCurrentLevel({
+                ? await resolveTelegramThinkMenuCurrentLevel({
                     cfg: runtimeCfg,
                     agentId: route.agentId,
                     ...menuModelContext,
