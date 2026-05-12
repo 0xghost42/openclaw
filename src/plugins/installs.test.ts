@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildNpmResolutionInstallFields,
   recordPluginInstall,
@@ -6,11 +6,17 @@ import {
 } from "./installs.js";
 
 function expectRecordedInstall(pluginId: string, next: ReturnType<typeof recordPluginInstall>) {
-  expect(next.plugins?.installs?.[pluginId]).toMatchObject({
-    source: "npm",
-    spec: `${pluginId}@latest`,
+  expect(next).toEqual({
+    plugins: {
+      installs: {
+        [pluginId]: {
+          source: "npm",
+          spec: `${pluginId}@latest`,
+          installedAt: "2026-05-11T04:00:00.000Z",
+        },
+      },
+    },
   });
-  expect(typeof next.plugins?.installs?.[pluginId]?.installedAt).toBe("string");
 }
 
 function createExpectedResolutionFields(
@@ -33,6 +39,10 @@ function expectResolutionFieldsCase(params: {
 }) {
   expect(buildNpmResolutionInstallFields(params.input)).toEqual(params.expected);
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("buildNpmResolutionInstallFields", () => {
   it.each([
@@ -74,11 +84,18 @@ describe("buildNpmResolutionInstallFields", () => {
 
 describe("recordPluginInstall", () => {
   it("stores install metadata for the plugin id", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-11T04:00:00.000Z"));
+
     const next = recordPluginInstall({}, { pluginId: "demo", source: "npm", spec: "demo@latest" });
+
     expectRecordedInstall("demo", next);
   });
 
   it("updates install record maps without a config-shaped carrier", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-11T04:00:00.000Z"));
+
     const next = recordPluginInstallInRecordMap(
       {
         demo: {
@@ -90,10 +107,12 @@ describe("recordPluginInstall", () => {
       { pluginId: "demo", source: "npm", spec: "demo@latest" },
     );
 
-    expect(next.demo).toMatchObject({
-      source: "npm",
-      spec: "demo@latest",
+    expect(next).toEqual({
+      demo: {
+        source: "npm",
+        spec: "demo@latest",
+        installedAt: "2026-05-11T04:00:00.000Z",
+      },
     });
-    expect(typeof next.demo?.installedAt).toBe("string");
   });
 });
