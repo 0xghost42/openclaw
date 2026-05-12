@@ -91,8 +91,11 @@ describe("cron store", () => {
     await saveCronStore(storeKey, payload);
 
     const loaded = await loadCronStore(storeKey);
+    expect(loaded.version).toBe(1);
+    expect(loaded.jobs).toHaveLength(1);
     expect(loaded.jobs[0]).toMatchObject({
       id: "job-1",
+      enabled: true,
       state: { nextRunAtMs: payload.jobs[0].createdAtMs + 60_000 },
     });
   });
@@ -330,11 +333,10 @@ describe("cron store", () => {
 
     const loaded = loadCronStoreSync(storeKey);
 
-    expect(loaded.jobs[0]).toMatchObject({
-      id: "job-sync",
-      state: expect.any(Object),
-      updatedAtMs: expect.any(Number),
-    });
+    expect(loaded.jobs).toHaveLength(1);
+    expect(loaded.jobs[0]?.id).toBe("job-sync");
+    expect(loaded.jobs[0]?.state).toStrictEqual({});
+    expect(loaded.jobs[0]?.updatedAtMs).toBeTypeOf("number");
   });
 
   it("stateOnly saves runtime state without replacing job definitions", async () => {
