@@ -87,15 +87,23 @@ function createAgentRuntime(payloads: Array<Record<string, unknown>>) {
 
 function requireEmbeddedAgentArgs(runEmbeddedPiAgent: ReturnType<typeof vi.fn>) {
   const calls = runEmbeddedPiAgent.mock.calls as unknown[][];
-  const firstCall = calls[0];
-  if (!firstCall) {
-    throw new Error("voice response generator did not invoke the embedded agent");
-  }
+  const firstCall = requireFirstMockCall(
+    calls,
+    "voice response generator embedded agent invocation",
+  );
   const args = firstCall[0] as Partial<EmbeddedAgentArgs> | undefined;
   if (!args?.extraSystemPrompt) {
     throw new Error("voice response generator did not pass the spoken-output contract prompt");
   }
   return args as EmbeddedAgentArgs;
+}
+
+function requireFirstMockCall(calls: readonly unknown[][], label: string): unknown[] {
+  const call = calls.at(0);
+  if (!call) {
+    throw new Error(`expected ${label} call`);
+  }
+  return call;
 }
 
 async function runGenerateVoiceResponse(
@@ -205,13 +213,10 @@ describe("generateVoiceResponse", () => {
         sessionKey: "voice:15550001111",
       }),
     );
-    expect(runEmbeddedPiAgent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "openai",
-        model: "gpt-4.1-nano",
-        sessionKey: "voice:15550001111",
-      }),
-    );
+    const args = requireEmbeddedAgentArgs(runEmbeddedPiAgent);
+    expect(args.provider).toBe("openai");
+    expect(args.model).toBe("gpt-4.1-nano");
+    expect(args.sessionKey).toBe("voice:15550001111");
   });
 
   it("uses the persisted per-call session key for classic responses", async () => {
