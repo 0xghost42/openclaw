@@ -154,6 +154,7 @@ const BASE_METHODS = [
   "node.pending.ack",
   "node.invoke.result",
   "node.event",
+  "cron.get",
   "cron.list",
   "cron.status",
   "cron.add",
