@@ -15,6 +15,7 @@ import {
   validateTargetProviderPrefix,
 } from "../../infra/outbound/channel-target-prefix.js";
 import { listConfiguredAnnounceChannelIdsForConfig } from "../../plugins/channel-plugin-ids.js";
+import { isSubagentSessionKey } from "../../routing/session-key.js";
 import { normalizeMessageChannel } from "../../utils/message-channel.js";
 import {
   ErrorCodes,
@@ -177,6 +178,14 @@ export const cronHandlers: GatewayRequestHandlers = {
       sessionKey?: string;
     };
     const sessionKey = p.sessionKey?.trim() || undefined;
+    if (sessionKey && isSubagentSessionKey(sessionKey)) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "wake sessionKey cannot target a subagent session"),
+      );
+      return;
+    }
     const result = context.cron.wake({
       mode: p.mode,
       text: p.text,
