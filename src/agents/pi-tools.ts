@@ -65,6 +65,7 @@ import { cleanToolSchemaForGemini, normalizeToolParameters } from "./pi-tools.sc
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
 import { SANDBOX_AGENT_WORKSPACE_MOUNT } from "./sandbox/constants.js";
+import { resolveSenderToolPolicy } from "./sender-tool-policy.js";
 import {
   isSubagentEnvelopeSession,
   resolveSubagentCapabilityStore,
@@ -551,6 +552,15 @@ export function createOpenClawCodingTools(options?: {
     senderUsername: options?.senderUsername,
     senderE164: options?.senderE164,
   });
+  const senderPolicy = resolveSenderToolPolicy({
+    config: options?.config,
+    agentId,
+    messageProvider: options?.messageProvider,
+    senderId: options?.senderId,
+    senderName: options?.senderName,
+    senderUsername: options?.senderUsername,
+    senderE164: options?.senderE164,
+  });
   const profilePolicy = resolveToolProfilePolicy(profile);
   const providerProfilePolicy = resolveToolProfilePolicy(providerProfile);
 
@@ -614,6 +624,7 @@ export function createOpenClawCodingTools(options?: {
   const agentProviderPolicyWithToolSearchControls =
     mergeToolSearchControlAllowlist(agentProviderPolicy);
   const groupPolicyWithToolSearchControls = mergeToolSearchControlAllowlist(groupPolicy);
+  const senderPolicyWithToolSearchControls = mergeToolSearchControlAllowlist(senderPolicy);
   const sandboxToolPolicyWithToolSearchControls =
     mergeToolSearchControlAllowlist(sandboxToolPolicy);
   const subagentPolicyWithToolSearchControls = mergeToolSearchControlAllowlist(subagentPolicy);
@@ -625,6 +636,7 @@ export function createOpenClawCodingTools(options?: {
     agentPolicyWithToolSearchControls,
     agentProviderPolicyWithToolSearchControls,
     groupPolicyWithToolSearchControls,
+    senderPolicyWithToolSearchControls,
     sandboxToolPolicyWithToolSearchControls,
     subagentPolicyWithToolSearchControls,
   ]);
@@ -865,6 +877,7 @@ export function createOpenClawCodingTools(options?: {
     agentPolicy,
     agentProviderPolicy,
     groupPolicy,
+    senderPolicy,
     sandboxToolPolicy,
     subagentPolicy,
     options?.runtimeToolAllowlist ? { allow: options.runtimeToolAllowlist } : undefined,
@@ -877,6 +890,7 @@ export function createOpenClawCodingTools(options?: {
     agentPolicy,
     agentProviderPolicy,
     groupPolicy,
+    senderPolicy,
     sandboxToolPolicy,
     subagentPolicy,
   ]);
@@ -1076,6 +1090,7 @@ export function createOpenClawCodingTools(options?: {
         agentPolicy: agentPolicyWithToolSearchControls,
         agentProviderPolicy: agentProviderPolicyWithToolSearchControls,
         groupPolicy: groupPolicyWithToolSearchControls,
+        senderPolicy: senderPolicyWithToolSearchControls,
         agentId,
       }),
       { policy: sandboxToolPolicyWithToolSearchControls, label: "sandbox tools.allow" },
