@@ -539,10 +539,8 @@ describe("listSessionsFromStore subagent metadata", () => {
     });
 
     expect(result.sessions).toHaveLength(1);
-    expect(result.sessions[0]).toMatchObject({
-      key: childSessionKey,
-      spawnedBy: "agent:main:subagent:new-parent-owner",
-    });
+    expect(result.sessions[0]?.key).toBe(childSessionKey);
+    expect(result.sessions[0]?.spawnedBy).toBe("agent:main:subagent:new-parent-owner");
   });
 
   test("reports the newest parentSessionKey for moved child session rows", () => {
@@ -588,10 +586,8 @@ describe("listSessionsFromStore subagent metadata", () => {
     });
 
     expect(result.sessions).toHaveLength(1);
-    expect(result.sessions[0]).toMatchObject({
-      key: childSessionKey,
-      parentSessionKey: "agent:main:subagent:new-parent-parent",
-    });
+    expect(result.sessions[0]?.key).toBe(childSessionKey);
+    expect(result.sessions[0]?.parentSessionKey).toBe("agent:main:subagent:new-parent-parent");
   });
 
   test("preserves original session timing across follow-up replacement runs", () => {
@@ -681,12 +677,10 @@ describe("listSessionsFromStore subagent metadata", () => {
     });
 
     expect(result.sessions).toHaveLength(1);
-    expect(result.sessions[0]).toMatchObject({
-      key: childSessionKey,
-      status: "done",
-      startedAt: now - 900,
-      endedAt: now - 200,
-    });
+    expect(result.sessions[0]?.key).toBe(childSessionKey);
+    expect(result.sessions[0]?.status).toBe("done");
+    expect(result.sessions[0]?.startedAt).toBe(now - 900);
+    expect(result.sessions[0]?.endedAt).toBe(now - 200);
   });
 
   test("prefers persisted terminal session state when only stale active subagent snapshots remain", () => {
@@ -1128,8 +1122,8 @@ describe("loadCombinedSessionEntriesForGateway includes SQLite-registered agents
       } as OpenClawConfig;
 
       const { entries } = loadCombinedSessionEntriesForGateway(cfg);
-      expect(entries["agent:main:main"]).toBeDefined();
-      expect(entries["agent:codex:acp-task"]).toBeDefined();
+      expect(entries["agent:main:main"]?.sessionId).toBe("s-main");
+      expect(entries["agent:codex:acp-task"]?.sessionId).toBe("s-codex");
     });
   });
 
@@ -1157,7 +1151,7 @@ describe("loadCombinedSessionEntriesForGateway includes SQLite-registered agents
 
       const { entries } = loadCombinedSessionEntriesForGateway(cfg, { agentId: "codex" });
 
-      expect(entries["agent:codex:acp-task"]).toBeDefined();
+      expect(entries["agent:codex:acp-task"]?.sessionId).toBe("s-codex");
       expect(entries["agent:main:main"]).toBeUndefined();
     });
   });
