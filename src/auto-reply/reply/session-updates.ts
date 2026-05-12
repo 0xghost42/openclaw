@@ -16,6 +16,10 @@ import {
   upsertSessionEntry,
 } from "../../config/sessions.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import {
+  forgetActiveSessionForShutdown,
+  noteActiveSessionForShutdown,
+} from "../../gateway/active-sessions-shutdown-tracker.js";
 import { logVerbose } from "../../globals.js";
 import { getRemoteSkillEligibility } from "../../infra/skills-remote.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
@@ -59,6 +63,17 @@ function emitCompactionSessionLifecycleHooks(params: {
   previousEntry: SessionEntry;
   nextEntry: SessionEntry;
 }) {
+  if (params.previousEntry.sessionId) {
+    forgetActiveSessionForShutdown(params.previousEntry.sessionId);
+  }
+  if (params.nextEntry.sessionId) {
+    noteActiveSessionForShutdown({
+      cfg: params.cfg,
+      sessionKey: params.sessionKey,
+      sessionId: params.nextEntry.sessionId,
+      agentId: resolveAgentIdFromSessionKey(params.sessionKey),
+    });
+  }
   const hookRunner = getGlobalHookRunner();
   if (!hookRunner) {
     return;
