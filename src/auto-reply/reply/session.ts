@@ -65,6 +65,11 @@ import { clearSessionResetRuntimeState } from "./session-reset-cleanup.js";
 
 const log = createSubsystemLogger("session-init");
 
+type ReplySessionEndReason = Extract<
+  PluginHookSessionEndReason,
+  "new" | "reset" | "idle" | "daily" | "unknown"
+>;
+
 function stripThreadIdFromDeliveryContext(
   context: SessionEntry["deliveryContext"],
 ): SessionEntry["deliveryContext"] {
@@ -75,9 +80,15 @@ function stripThreadIdFromDeliveryContext(
   return Object.keys(rest).length > 0 ? rest : undefined;
 }
 
-function resolveExplicitSessionEndReason(
-  matchedResetTriggerLower?: string,
-): PluginHookSessionEndReason {
+function stripThreadIdFromOrigin(origin: SessionEntry["origin"]): SessionEntry["origin"] {
+  if (!origin || origin.threadId == null || origin.threadId === "") {
+    return origin;
+  }
+  const { threadId: _threadId, ...rest } = origin;
+  return Object.keys(rest).length > 0 ? rest : undefined;
+}
+
+function resolveExplicitSessionEndReason(matchedResetTriggerLower?: string): ReplySessionEndReason {
   return matchedResetTriggerLower === "/reset" ? "reset" : "new";
 }
 
@@ -108,7 +119,7 @@ function resolveStaleSessionEndReason(params: {
   entry: SessionEntry | undefined;
   freshness?: SessionFreshness;
   now: number;
-}): PluginHookSessionEndReason | undefined {
+}): ReplySessionEndReason | undefined {
   if (!params.entry || !params.freshness) {
     return undefined;
   }
