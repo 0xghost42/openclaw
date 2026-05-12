@@ -54,18 +54,25 @@ describe("Hermes migration secret items", () => {
     );
 
     expect(plan.metadata?.agentDir).toBe(customAgentDir);
-    expect(plan.items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "secret:openai",
-          target: `${resolveAuthProfileStoreLocationForDisplay(
-            customAgentDir,
-            stateEnv(stateDir),
-          )}/openai:hermes-import`,
-          status: "planned",
-        }),
-      ]),
-    );
+    expect(plan.items).toEqual([
+      {
+        id: "secret:openai",
+        kind: "secret",
+        action: "create",
+        source: path.join(source, ".env"),
+        target: `${resolveAuthProfileStoreLocationForDisplay(
+          customAgentDir,
+          stateEnv(stateDir),
+        )}/openai:hermes-import`,
+        status: "planned",
+        sensitive: true,
+        details: {
+          envVar: "OPENAI_API_KEY",
+          provider: "openai",
+          profileId: "openai:hermes-import",
+        },
+      },
+    ]);
 
     const result = await provider.apply(
       makeContext({
@@ -142,15 +149,26 @@ describe("Hermes migration secret items", () => {
 
     const result = await provider.apply(ctx, plan);
 
-    expect(result.items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "secret:openai",
-          status: "conflict",
-          reason: HERMES_REASON_AUTH_PROFILE_EXISTS,
-        }),
-      ]),
-    );
+    expect(result.items).toEqual([
+      {
+        id: "secret:openai",
+        kind: "secret",
+        action: "create",
+        source: path.join(source, ".env"),
+        target: `${resolveAuthProfileStoreLocationForDisplay(
+          agentDir,
+          stateEnv(stateDir),
+        )}/openai:hermes-import`,
+        status: "conflict",
+        sensitive: true,
+        reason: HERMES_REASON_AUTH_PROFILE_EXISTS,
+        details: {
+          envVar: "OPENAI_API_KEY",
+          provider: "openai",
+          profileId: "openai:hermes-import",
+        },
+      },
+    ]);
     expect(result.summary.conflicts).toBe(1);
     const authStore = loadAuthProfileStoreWithoutExternalProfiles(agentDir, {
       env: stateEnv(stateDir),
