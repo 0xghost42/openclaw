@@ -64,13 +64,13 @@ const CASES: ChannelCase[] = [
 ];
 
 async function runExplicitAnnounceTurn(params: {
-  home: string;
+  cfg: ReturnType<typeof makeCfg>;
   deps: CliDeps;
   channel: ChannelCase["channel"];
   to: string;
 }) {
   return await runCronIsolatedAgentTurn({
-    cfg: makeCfg(params.home),
+    cfg: params.cfg,
     deps: params.deps,
     job: {
       ...makeJob({ kind: "agentTurn", message: "do it" }),
@@ -87,6 +87,30 @@ async function runExplicitAnnounceTurn(params: {
 }
 
 type CoreChannelSendFn = CliDeps[ChannelCase["sendKey"]];
+type MockedTestSendFn = TestSendFn & {
+  mock: { calls: Parameters<TestSendFn>[] };
+};
+
+function expectCoreChannelSendCall({
+  cfg,
+  expectedText,
+  expectedTo,
+  sendFn,
+  sentAt,
+}: {
+  cfg: ReturnType<typeof makeCfg>;
+  expectedText: string;
+  expectedTo: string;
+  sendFn: CoreChannelSendFn;
+  sentAt: number;
+}): void {
+  const calls = (sendFn as MockedTestSendFn).mock.calls;
+  const call = calls[sentAt];
+  expect(call?.[0]).toBe(expectedTo);
+  expect(call?.[1]).toBe(expectedText);
+  expect(call?.[2]?.cfg).toStrictEqual(cfg);
+  expect(call?.[2]?.accountId).toBeUndefined();
+}
 
 async function expectCoreChannelAnnounceDelivery({
   assertSend,
@@ -94,13 +118,14 @@ async function expectCoreChannelAnnounceDelivery({
   payloads,
   testCase,
 }: {
-  assertSend: (sendFn: CoreChannelSendFn) => void;
+  assertSend: (sendFn: CoreChannelSendFn, cfg: ReturnType<typeof makeCfg>) => void;
   meta?: Parameters<typeof mockAgentPayloads>[1];
   payloads: Parameters<typeof mockAgentPayloads>[0];
   testCase: ChannelCase;
 }): Promise<void> {
   await withTempCronHome(async (home) => {
     await seedMainRouteSession(home, { lastChannel: "webchat", lastTo: "" });
+    const cfg = makeCfg(home);
     const deps = createCliDeps();
     if (meta) {
       mockAgentPayloads(payloads, meta);
@@ -109,7 +134,7 @@ async function expectCoreChannelAnnounceDelivery({
     }
 
     const res = await runExplicitAnnounceTurn({
-      home,
+      cfg,
       deps,
       channel: testCase.channel,
       to: testCase.to,
@@ -119,7 +144,7 @@ async function expectCoreChannelAnnounceDelivery({
     expect(res.delivered).toBe(true);
     expect(res.deliveryAttempted).toBe(true);
     expect(runSubagentAnnounceFlow).not.toHaveBeenCalled();
-    assertSend(deps[testCase.sendKey]);
+    assertSend(deps[testCase.sendKey], cfg);
   });
 }
 
@@ -276,13 +301,15 @@ describe("runCronIsolatedAgentTurn core-channel direct delivery", () => {
       await expectCoreChannelAnnounceDelivery({
         testCase,
         payloads: [{ text: "hello from cron" }],
-        assertSend: (sendFn) => {
+        assertSend: (sendFn, cfg) => {
           expect(sendFn).toHaveBeenCalledTimes(1);
-          expect(sendFn).toHaveBeenCalledWith(
-            testCase.expectedTo,
-            "hello from cron",
-            expect.any(Object),
-          );
+          expectCoreChannelSendCall({
+            cfg,
+            expectedText: "hello from cron",
+            expectedTo: testCase.expectedTo,
+            sendFn,
+            sentAt: 0,
+          });
         },
       });
     });
@@ -299,13 +326,15 @@ describe("runCronIsolatedAgentTurn core-channel direct delivery", () => {
               finalAssistantVisibleText: "Final weather summary",
             },
           },
-          assertSend: (sendFn) => {
+          assertSend: (sendFn, cfg) => {
             expect(sendFn).toHaveBeenCalledTimes(1);
-            expect(sendFn).toHaveBeenCalledWith(
-              testCase.expectedTo,
-              "Final weather summary",
-              expect.any(Object),
-            );
+            expectCoreChannelSendCall({
+              cfg,
+              expectedText: "Final weather summary",
+              expectedTo: testCase.expectedTo,
+              sendFn,
+              sentAt: 0,
+            });
           },
         });
       });
@@ -323,20 +352,22 @@ describe("runCronIsolatedAgentTurn core-channel direct delivery", () => {
             finalAssistantVisibleText: "Final weather summary",
           },
         },
-        assertSend: (sendFn) => {
+        assertSend: (sendFn, cfg) => {
           expect(sendFn).toHaveBeenCalledTimes(2);
-          expect(sendFn).toHaveBeenNthCalledWith(
-            1,
-            testCase.expectedTo,
-            "Working on it...",
-            expect.any(Object),
-          );
-          expect(sendFn).toHaveBeenNthCalledWith(
-            2,
-            testCase.expectedTo,
-            "Final weather summary",
-            expect.any(Object),
-          );
+          expectCoreChannelSendCall({
+            cfg,
+            expectedText: "Working on it...",
+            expectedTo: testCase.expectedTo,
+            sendFn,
+            sentAt: 0,
+          });
+          expectCoreChannelSendCall({
+            cfg,
+            expectedText: "Final weather summary",
+            expectedTo: testCase.expectedTo,
+            sendFn,
+            sentAt: 1,
+          });
         },
       });
     });
