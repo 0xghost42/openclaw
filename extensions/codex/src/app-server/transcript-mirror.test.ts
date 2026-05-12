@@ -336,8 +336,9 @@ describe("mirrorCodexAppServerTranscript", () => {
       )
       .filter((record) => record.type === "message");
 
-    expect(records[0]).toMatchObject({ id: "legacy-user", parentId: null });
-    expect(records[1]).toMatchObject({ parentId: "legacy-user" });
+    expect(records[0]?.id).toBe("legacy-user");
+    expect(records[0]?.parentId).toBeNull();
+    expect(records[1]?.parentId).toBe("legacy-user");
   });
 
   // Helpers for the identity-based regression tests below.
