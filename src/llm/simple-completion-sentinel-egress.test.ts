@@ -4,6 +4,8 @@ import { createAssistantMessageEventStream, type Model, type StreamFn } from "@o
 import OpenAI from "openai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../agents/ai-transport-runtime-host.js";
+import { CUSTOM_LOCAL_AUTH_MARKER } from "../agents/model-auth-markers.js";
+import { applyLocalNoAuthHeaderOverride } from "../agents/model-auth-model.js";
 import {
   attachModelProviderRequestTransport,
   getModelProviderRequestTransport,
@@ -187,10 +189,10 @@ describe("simple completion with the production transport host", () => {
   });
 
   it("preserves null header deletion through sentinel resolution and SDK request construction", async () => {
-    const source = {
-      ...model,
-      headers: { Authorization: null, "x-visible": seal("synthetic-visible-header") },
-    } as Model;
+    const source: Model = applyLocalNoAuthHeaderOverride(
+      { ...model, headers: { "x-visible": seal("synthetic-visible-header") } },
+      { apiKey: CUSTOM_LOCAL_AUTH_MARKER, source: "synthetic local test", mode: "api-key" },
+    );
     let sentHeaders: Headers | undefined;
     let request: Promise<unknown> | undefined;
     await withProvider(
